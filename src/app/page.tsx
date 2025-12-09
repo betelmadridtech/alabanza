@@ -210,22 +210,40 @@ export default function Home() {
       const element = document.getElementById("report-capture-area");
       if (!element) return;
       
-      const dataUrl = await toJpeg(element, { quality: 0.95, backgroundColor: '#ffffff', style: { margin: '0' } });
+      // CONFIGURACIÓN CLAVE PARA MÓVIL 👇
+      const dataUrl = await toJpeg(element, { 
+        quality: 0.95, 
+        backgroundColor: '#ffffff',
+        // 1. Forzamos un ancho de escritorio (1200px)
+        width: 1200, 
+        // 2. Forzamos el estilo durante la captura para que el Grid se expanda
+        style: { 
+            margin: '0',
+            minWidth: '1200px', // Obliga al CSS a usar lg:grid-cols-2
+            maxWidth: '1200px',
+            height: 'auto',
+            padding: '40px' // Un poco de aire extra
+        },
+        // 3. Mejor calidad de texto
+        pixelRatio: 2 
+      });
+
       const link = document.createElement('a');
-
-      // --- CORRECCIÓN AQUÍ ---
-      // Usamos la hora local para formar el nombre del archivo
-      const year = selectedDate.getFullYear();
-      const month = String(selectedDate.getMonth() + 1).padStart(2, '0'); // Mes empieza en 0
-      const day = String(selectedDate.getDate()).padStart(2, '0');
       
-      link.download = `Inchinare-${year}-${month}-${day}.jpg`;
-      // -----------------------
+      // Formato de fecha corregido (Año-Mes-Dia)
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
 
+      link.download = `Inchinare-${year}-${month}-${day}.jpg`;
       link.href = dataUrl;
       link.click();
-    } catch (e) { console.error(e); alert("Error al exportar"); }
-    finally { setIsExporting(false); }
+    } catch (e) { 
+        console.error(e); 
+        alert("Error al exportar"); 
+    } finally { 
+        setIsExporting(false); 
+    }
   };
   // --- RENDER HELPER ---
   const renderSection = (section: typeof SERVICE_SECTIONS[0]) => {
@@ -360,7 +378,7 @@ export default function Home() {
             
             {/* LADO IZQUIERDO: Versión y Nuevo Botón de Historial */}
             <div className="flex items-center gap-4">
-                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.2.1</span>
+                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.2.2</span>
                 {/* 👇 Aquí está el componente nuevo */}
                 <ProcessedDatesManager onUpdate={refreshTeam} />
             </div>
