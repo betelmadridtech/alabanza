@@ -37,7 +37,11 @@ export function RoleSelector({
     (a) => a.role_id === slotId && a.turno === turno
   );
 
-  // --- 1. FUNCIÓN DE CONFLICTOS (La necesitamos antes de ordenar) ---
+  // --- NUEVO: Buscamos el objeto usuario completo del asignado actualmente ---
+  const selectedUser = users.find(u => u.id === assignment?.user_id);
+
+
+  // --- 1. FUNCIÓN DE CONFLICTOS ---
   const isYouthRole = (id: string) => id.toLowerCase().includes('youth');
 
   const getConflictInfo = (userId: string) => {
@@ -72,14 +76,11 @@ export function RoleSelector({
     });
   };
 
-  // --- 2. PREPARACIÓN DE DATOS (Mapear + Ordenar) ---
-  
-  // Primero filtramos por capacidad
+  // --- 2. PREPARACIÓN DE DATOS ---
   const qualifiedUsers = users.filter(user => 
     user.roles && user.roles.includes(capability)
   );
 
-  // Creamos una lista enriquecida con la info de conflictos
   const usersWithStatus = qualifiedUsers.map(user => {
     const conflict = getConflictInfo(user.id);
     return {
@@ -90,15 +91,10 @@ export function RoleSelector({
     };
   });
 
-  // Ordenamos: 
-  // Prioridad 1: ¿Está libre? (Libres arriba, Ocupados abajo)
-  // Prioridad 2: Disponibilidad (Más alta arriba)
   const sortedUsers = usersWithStatus.sort((a, b) => {
-    // Si uno está ocupado y el otro no
     if (a.isBusy !== b.isBusy) {
-        return a.isBusy ? 1 : -1; // true (ocupado) va al final (1)
+        return a.isBusy ? 1 : -1; 
     }
-    // Si ambos tienen el mismo estado, desempatamos por disponibilidad
     return b.availability - a.availability;
   });
 
@@ -113,11 +109,20 @@ export function RoleSelector({
         value={assignment?.user_id || ""}
         onValueChange={handleSelect}
       >
+        {/* --- MODIFICACIÓN AQUÍ: Renderizado condicional del Trigger --- */}
         <SelectTrigger className={`w-full ${!assignment ? "text-slate-400" : "text-black font-medium"}`}>
-          <SelectValue placeholder={label || "Seleccionar..."} />
+          {selectedUser ? (
+             /* Si hay usuario, mostramos SOLO el nombre limpio */
+             <span className="truncate text-slate-800 font-medium">
+                {selectedUser.nombre}
+             </span>
+          ) : (
+             /* Si no hay nadie, mostramos el placeholder */
+             <SelectValue placeholder={label || "Seleccionar..."} />
+          )}
         </SelectTrigger>
         
-        <SelectContent className="max-h-[300px]"> {/* Altura máxima para scroll si hay muchos */}
+        <SelectContent className="max-h-[300px]">
           
           <SelectItem value="CLEAR_SELECTION" className="text-red-500 font-medium focus:text-red-600 focus:bg-red-50 py-3 mb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
@@ -140,7 +145,6 @@ export function RoleSelector({
                   key={user.id} 
                   value={user.id}
                   disabled={isDisabled}
-                  // AQUI DAMOS MÁS ESPACIO VISUAL
                   className={`
                     py-3 my-1 cursor-pointer border-b border-slate-50 last:border-0
                     ${isDisabled ? "opacity-60 bg-slate-50" : "hover:bg-slate-50"}
@@ -152,20 +156,17 @@ export function RoleSelector({
                         {user.nombre}
                       </span>
                       
-                      {/* Mensaje de conflicto u ocupación */}
                       {isDisabled && user.conflictInfo ? (
                         <span className="text-[11px] text-amber-600 flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded w-fit">
                              <AlertCircle size={10} /> {user.conflictInfo.role_id}
                         </span>
                       ) : (
-                        // Si no está ocupado, mostramos info extra útil si quieres
                         <span className="text-[10px] text-slate-400">
                             {user.availability >= 80 ? "Alta disponibilidad" : ""}
                         </span>
                       )}
                     </div>
 
-                    {/* Indicador visual de porcentaje a la derecha */}
                     <div className="flex flex-col items-end">
                         {!isDisabled && (
                             <div className={`flex items-center gap-1 text-xs ${isLowAvailability ? "text-red-500" : "text-green-600"}`}>

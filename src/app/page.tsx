@@ -351,7 +351,7 @@ export default function Home() {
             
             {/* LADO IZQUIERDO: Versión y Nuevo Botón de Historial */}
             <div className="flex items-center gap-4">
-                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.0</span>
+                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.2.1</span>
                 {/* 👇 Aquí está el componente nuevo */}
                 <ProcessedDatesManager onUpdate={refreshTeam} />
             </div>
