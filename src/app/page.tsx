@@ -210,27 +210,34 @@ export default function Home() {
       const element = document.getElementById("report-capture-area");
       if (!element) return;
       
-      // CONFIGURACIÓN CLAVE PARA MÓVIL 👇
       const dataUrl = await toJpeg(element, { 
         quality: 0.95, 
         backgroundColor: '#ffffff',
-        // 1. Forzamos un ancho de escritorio (1200px)
-        width: 1200, 
-        // 2. Forzamos el estilo durante la captura para que el Grid se expanda
+        width: 1200, // Anchura de lienzo
         style: { 
             margin: '0',
-            minWidth: '1200px', // Obliga al CSS a usar lg:grid-cols-2
+            minWidth: '1200px',
             maxWidth: '1200px',
             height: 'auto',
-            padding: '40px' // Un poco de aire extra
+            padding: '40px'
         },
-        // 3. Mejor calidad de texto
-        pixelRatio: 2 
-      });
+        // 👇 ESTA ES LA CLAVE: Modificamos el clon antes de la foto
+        onClone: (clonedNode: HTMLElement) => {
+            // Buscamos el grid dentro del nodo clonado
+            // (Nota: clonedNode es un HTMLElement, así que podemos usar querySelector)
+            const gridElement = (clonedNode as HTMLElement).querySelector('#service-grid-layout') as HTMLElement;
+            
+            if (gridElement) {
+                // Forzamos CSS Grid de 2 columnas manualmente
+                gridElement.style.display = 'grid';
+                gridElement.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+                gridElement.style.gap = '24px'; // Equivalente a gap-6
+            }
+        }
+      }as any);
 
       const link = document.createElement('a');
       
-      // Formato de fecha corregido (Año-Mes-Dia)
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
@@ -358,7 +365,7 @@ export default function Home() {
             </div>
 
             {/* Layout Columnas */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div id="service-grid-layout" className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 {/* COLUMNA IZQUIERDA: Banda */}
                 <div className="w-full">
                     {SERVICE_SECTIONS.filter(s => s.category === 'Banda').map(section => renderSection(section))}
@@ -378,7 +385,7 @@ export default function Home() {
             
             {/* LADO IZQUIERDO: Versión y Nuevo Botón de Historial */}
             <div className="flex items-center gap-4">
-                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.2.2</span>
+                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.2.3</span>
                 {/* 👇 Aquí está el componente nuevo */}
                 <ProcessedDatesManager onUpdate={refreshTeam} />
             </div>
