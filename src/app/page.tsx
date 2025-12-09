@@ -209,15 +209,24 @@ export default function Home() {
     try {
       const element = document.getElementById("report-capture-area");
       if (!element) return;
+      
       const dataUrl = await toJpeg(element, { quality: 0.95, backgroundColor: '#ffffff', style: { margin: '0' } });
       const link = document.createElement('a');
-      link.download = `Inchinare-${selectedDate.toISOString().split('T')[0]}.jpg`;
+
+      // --- CORRECCIÓN AQUÍ ---
+      // Usamos la hora local para formar el nombre del archivo
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0'); // Mes empieza en 0
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      
+      link.download = `Inchinare-${year}-${month}-${day}.jpg`;
+      // -----------------------
+
       link.href = dataUrl;
       link.click();
     } catch (e) { console.error(e); alert("Error al exportar"); }
     finally { setIsExporting(false); }
   };
-
   // --- RENDER HELPER ---
   const renderSection = (section: typeof SERVICE_SECTIONS[0]) => {
     const sectionUsers = users.filter(user => {
