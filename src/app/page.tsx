@@ -11,6 +11,8 @@ import { supabase } from "@/lib/supabase";
 import { LoginScreen } from "@/components/LoginScreen";
 import { TeamManagerDialog } from "@/components/TeamManagerDialog";
 import { RoleSelector } from "@/components/RoleSelector";
+// 👇 IMPORTANTE: Importamos el nuevo componente
+import { ProcessedDatesManager } from "@/components/ProcessedDatesManager"; 
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -162,7 +164,7 @@ export default function Home() {
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
-      // Lógica de guardado y disponibilidades (Resumida para brevedad, misma lógica que antes)
+      // Lógica de guardado y disponibilidades
       const { data: existingLock } = await supabase.from('processed_dates').select('fecha').eq('fecha', dateStr).single();
       const isAlreadyProcessed = !!existingLock; 
 
@@ -217,7 +219,6 @@ export default function Home() {
   };
 
   // --- RENDER HELPER ---
-  // Esta función renderiza una "Cajita" de sección (ej: Banda, Sonido, etc)
   const renderSection = (section: typeof SERVICE_SECTIONS[0]) => {
     const sectionUsers = users.filter(user => {
         if (section.category === 'Banda') return user.es_banda;
@@ -302,7 +303,7 @@ export default function Home() {
           </Card>
       </div>
 
-      {/* 2. ÁREA DE REPORTE (Grid dividida) */}
+      {/* 2. ÁREA DE REPORTE */}
       <div className="w-full max-w-6xl" id="report-capture-area">
           <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 relative">
             
@@ -329,34 +330,33 @@ export default function Home() {
               </div>
             </div>
 
-            {/* --- LAYOUT DE COLUMNAS AQUÍ --- */}
+            {/* Layout Columnas */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                
-                {/* COLUMNA IZQUIERDA: Solo Banda */}
+                {/* COLUMNA IZQUIERDA: Banda */}
                 <div className="w-full">
-                    {SERVICE_SECTIONS
-                        .filter(s => s.category === 'Banda')
-                        .map(section => renderSection(section))
-                    }
+                    {SERVICE_SECTIONS.filter(s => s.category === 'Banda').map(section => renderSection(section))}
                 </div>
-
-                {/* COLUMNA DERECHA: Sonido, Streaming y Jóvenes (apilados) */}
+                {/* COLUMNA DERECHA: Sonido y Jóvenes */}
                 <div className="w-full space-y-6">
-                     {SERVICE_SECTIONS
-                        .filter(s => s.category !== 'Banda') // Filtra Sonido, Streaming, Jovenes
-                        .map(section => renderSection(section))
-                    }
+                     {SERVICE_SECTIONS.filter(s => s.category !== 'Banda').map(section => renderSection(section))}
                 </div>
-
             </div>
             
           </div>
       </div>
 
-      {/* 3. BARRA INFERIOR */}
+      {/* 3. BARRA INFERIOR MODIFICADA */}
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t p-4 shadow-2xl z-50">
         <div className="max-w-5xl mx-auto flex justify-between items-center">
-            <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.0</span>
+            
+            {/* LADO IZQUIERDO: Versión y Nuevo Botón de Historial */}
+            <div className="flex items-center gap-4">
+                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.0</span>
+                {/* 👇 Aquí está el componente nuevo */}
+                <ProcessedDatesManager onUpdate={refreshTeam} />
+            </div>
+
+            {/* LADO DERECHO: Botones de Acción */}
             <div className="flex gap-4 w-full sm:w-auto justify-end">
                 <Button variant="outline" className="gap-2" onClick={handleExport} disabled={isExporting}>
                   {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} Captura
