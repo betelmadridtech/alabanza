@@ -67,6 +67,8 @@ const SERVICE_SECTIONS = [
 ];
 
 export default function Home() {
+  // 1. PRIMERO: Declarar todos los Hooks (Hooks personalizados, States, Effects)
+  // ---------------------------------------------------------------------------
   const { users, loading, refreshTeam } = useTeamData();
   
   const { 
@@ -75,21 +77,18 @@ export default function Home() {
     isSplitService, 
     toggleSplitService, 
     currentAssignments,
-    setAssignments // <--- Usamos la acción de tu store actualizado
+    setAssignments
   } = useScheduleStore();
 
-  // --- TODOS LOS HOOKS DEBEN IR ARRIBA ---
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [disabledRoles, setDisabledRoles] = useState<string[]>([]);
   const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
-  
-  // Nuevo estado para controlar la carga al cambiar de fecha
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
 
-  // --- EFFECT: CONTROL LOGIN ---
+  // Effect: Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -102,7 +101,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- EFFECT: CARGAR FECHAS CON PUNTOS (OCUPADAS) ---
+  // Effect: Fechas ocupadas
   useEffect(() => {
     const fetchOccupiedDates = async () => {
       const { data } = await supabase.from('assignments').select('fecha');
@@ -115,25 +114,22 @@ export default function Home() {
     if (session) fetchOccupiedDates();
   }, [isSaving, session]);
 
-
-  // --- NUEVO EFFECT: CARGAR ORGANIZACIÓN AL CAMBIAR FECHA ---
+  // Effect: Cargar organización al cambiar fecha
   useEffect(() => {
     const loadScheduleForDate = async () => {
       if (!selectedDate) {
-        setAssignments([]); // Limpiar si no hay fecha
+        setAssignments([]); 
         return;
       }
 
       setIsLoadingSchedule(true);
 
       try {
-        // 1. Formatear fecha localmente (solución del bug de zona horaria)
         const year = selectedDate.getFullYear();
         const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
         const day = String(selectedDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
 
-        // 2. Pedir datos a Supabase
         const { data, error } = await supabase
           .from('assignments')
           .select('*')
@@ -141,12 +137,9 @@ export default function Home() {
 
         if (error) throw error;
 
-        // 3. Actualizar el Store
         if (data && data.length > 0) {
-          // Supabase devuelve un array, lo pasamos directo al store
           setAssignments(data);
         } else {
-          // Si no hay nada guardado ese día, limpiamos el tablero
           setAssignments([]);
         }
 
@@ -161,8 +154,8 @@ export default function Home() {
     
   }, [selectedDate, session, setAssignments]); 
 
-
-  // --- FUNCIONES AUXILIARES ---
+  // 2. SEGUNDO: Definir Funciones Auxiliares
+  // ----------------------------------------
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
@@ -206,13 +199,11 @@ export default function Home() {
 
     setIsSaving(true);
     try {
-      // Fecha Local YYYY-MM-DD
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
-      // 1. Borrar lo que hubiera antes ese día
       const { error: deleteError } = await supabase
         .from('assignments')
         .delete()
@@ -220,7 +211,6 @@ export default function Home() {
 
       if (deleteError) throw deleteError;
 
-      // 2. Insertar lo nuevo
       const validAssignments = currentAssignments.filter(a => !disabledRoles.includes(a.role_id));
       const dataToInsert = validAssignments.map(a => ({
         fecha: dateStr,
@@ -236,7 +226,6 @@ export default function Home() {
 
       alert("¡Guardado correctamente!");
       
-      // Actualizamos los puntos azules del calendario
       const { data } = await supabase.from('assignments').select('fecha');
       if (data) {
         const uniqueDates = Array.from(new Set(data.map(item => item.fecha)))
@@ -271,8 +260,8 @@ export default function Home() {
     }
   };
 
-  // --- RENDERIZADO CONDICIONAL ---
-  
+  // 3. TERCERO: Renderizado Condicional (Los IFs)
+  // ---------------------------------------------
   if (authLoading) {
     return (
         <div className="h-screen w-full flex flex-col items-center justify-center gap-4 bg-slate-50">
@@ -285,6 +274,8 @@ export default function Home() {
   if (!session) return <LoginScreen />;
   if (loading) return <div className="p-10 text-center flex items-center justify-center gap-2"><Loader2 className="animate-spin"/> Cargando equipo...</div>;
 
+  // 4. CUARTO: Return Principal (HTML)
+  // ----------------------------------
   return (
     <main className="min-h-screen bg-slate-50 p-4 pb-24 md:p-8">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -325,7 +316,7 @@ export default function Home() {
         <div className="md:col-span-8 space-y-6" id="report-capture-area">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative">
             
-            {/* OVERLAY DE CARGA: Se muestra solo cuando isLoadingSchedule es true */}
+            {/* OVERLAY DE CARGA */}
             {isLoadingSchedule && (
               <div className="absolute inset-0 bg-white/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm rounded-xl">
                  <Loader2 className="animate-spin text-blue-600 mb-2" size={40} />
