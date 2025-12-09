@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Organización 3BM",
-  description: "Creado por Roberto Daniel Matis",
+  description: "Creado por Roberto Daniel Matis v.1.1.0",
   icons: {
     icon: '/favicon.ico', // <--- Asegúrate de poner tu imagen en la carpeta /public
   },

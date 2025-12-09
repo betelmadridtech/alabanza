@@ -8,6 +8,8 @@ export interface User {
   nombre: string;
   email?: string;
   disponibilidad: number;
+  es_banda?: boolean;
+  es_jovenes?: boolean;
   roles?: string[];
 }
 

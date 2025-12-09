@@ -16,39 +16,44 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Save, Download, Loader2, Power, LogOut } from "lucide-react";
+// IMPORTAMOS LOS NUEVOS ICONOS AQUÍ 👇
+import { 
+  Save, Download, Loader2, Power, LogOut, 
+  Mic, Guitar, Music, Drum, Sliders, Video, 
+  Users, User, Keyboard, Zap 
+} from "lucide-react";
 import { es } from "date-fns/locale";
 
-// DEFINICIÓN DE LA ESTRUCTURA DEL CULTO
+// DEFINICIÓN DE LA ESTRUCTURA DEL CULTO CON ICONOS
 const SERVICE_SECTIONS = [
   {
     title: 'Banda',
     category: 'Banda',
     items: [
-      { id: 'worshipLeader', label: 'Líder de Alabanza', req: 'voice' },
-      { id: 'voice1', label: 'Voz 1', req: 'voice' },
-      { id: 'voice2', label: 'Voz 2', req: 'voice' },
-      { id: 'voice3', label: 'Voz 3', req: 'voice' }, 
-      { id: 'voice4', label: 'Voz 4', req: 'voice' }, 
-      { id: 'piano', label: 'Piano', req: 'piano' },
-      { id: 'acousticGuitar', label: 'Guitarra Acústica', req: 'guitar' },
-      { id: 'bass', label: 'Bajo', req: 'bass' },
-      { id: 'drums', label: 'Batería', req: 'drums' },
-      { id: 'electricGuitar', label: 'Guitarra Eléctrica', req: 'guitar' },
+      { id: 'worshipLeader', label: 'Líder', req: 'voice', icon: User }, // Líder diferenciado
+      { id: 'voice1', label: 'Voz 1', req: 'voice', icon: Mic },
+      { id: 'voice2', label: 'Voz 2', req: 'voice', icon: Mic },
+      { id: 'voice3', label: 'Voz 3', req: 'voice', icon: Mic }, 
+      { id: 'voice4', label: 'Voz 4', req: 'voice', icon: Mic }, 
+      { id: 'piano', label: 'Piano', req: 'piano', icon: Keyboard },
+      { id: 'acousticGuitar', label: 'Acústica', req: 'guitar', icon: Guitar },
+      { id: 'bass', label: 'Bajo', req: 'bass', icon: Music }, // Usamos nota musical para graves
+      { id: 'drums', label: 'Batería', req: 'drums', icon: Drum },
+      { id: 'electricGuitar', label: 'Eléctrica', req: 'guitar', icon: Zap },
     ]
   },
   {
     title: 'Sonido',
     category: 'Sonido',
     items: [
-      { id: 'sound', label: 'Sonido en Sala', req: 'media' }, 
+      { id: 'sound', label: 'Sala', req: 'media', icon: Sliders }, 
     ]
   },
   {
     title: 'Streaming',
     category: 'Sonido', 
     items: [
-      { id: 'streaming', label: 'Técnico Streaming', req: 'media' }, 
+      { id: 'streaming', label: 'Streaming', req: 'media', icon: Video }, 
     ]
   },
   {
@@ -56,19 +61,17 @@ const SERVICE_SECTIONS = [
     category: 'Jovenes',
     badge: 'Sábado',
     items: [
-      { id: 'youthLeader', label: 'Líder Jóvenes', req: 'voice' },
-      { id: 'youthVoice1', label: 'Voz Apoyo 1', req: 'voice' },
-      { id: 'youthVoice2', label: 'Voz Apoyo 2', req: 'voice' }, 
-      { id: 'youthGuitar', label: 'Guitarra', req: 'guitar' },
-      { id: 'youthBass', label: 'Bajo', req: 'bass' },
-      { id: 'youthDrums', label: 'Batería', req: 'drums' },
+      { id: 'youthLeader', label: 'Líder', req: 'voice', icon: User },
+      { id: 'youthVoice1', label: 'Voz 1', req: 'voice', icon: Mic },
+      { id: 'youthVoice2', label: 'Voz 2', req: 'voice', icon: Mic }, 
+      { id: 'youthGuitar', label: 'Guitarra', req: 'guitar', icon: Guitar },
+      { id: 'youthBass', label: 'Bajo', req: 'bass', icon: Music },
+      { id: 'youthDrums', label: 'Batería', req: 'drums', icon: Drum },
     ]
   }
 ];
 
 export default function Home() {
-  // 1. PRIMERO: Declarar todos los Hooks (Hooks personalizados, States, Effects)
-  // ---------------------------------------------------------------------------
   const { users, loading, refreshTeam } = useTeamData();
   
   const { 
@@ -114,16 +117,14 @@ export default function Home() {
     if (session) fetchOccupiedDates();
   }, [isSaving, session]);
 
-  // Effect: Cargar organización al cambiar fecha
+  // Effect: Cargar organización
   useEffect(() => {
     const loadScheduleForDate = async () => {
       if (!selectedDate) {
         setAssignments([]); 
         return;
       }
-
       setIsLoadingSchedule(true);
-
       try {
         const year = selectedDate.getFullYear();
         const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -136,26 +137,17 @@ export default function Home() {
           .eq('fecha', dateStr);
 
         if (error) throw error;
-
-        if (data && data.length > 0) {
-          setAssignments(data);
-        } else {
-          setAssignments([]);
-        }
-
+        setAssignments(data && data.length > 0 ? data : []);
       } catch (err) {
         console.error("Error al cargar el día:", err);
       } finally {
         setIsLoadingSchedule(false);
       }
     };
-
     if (session) loadScheduleForDate();
-    
   }, [selectedDate, session, setAssignments]); 
 
-  // 2. SEGUNDO: Definir Funciones Auxiliares
-  // ----------------------------------------
+  // Funciones Auxiliares
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
@@ -184,7 +176,6 @@ export default function Home() {
           assignment.turno === turnoRequired &&
           assignment.user_id 
         );
-
         if (!assignmentExists) {
           const turnoLabel = isSplitService ? ` (${turnoRequired})` : '';
           missingAssignments.push(`${item.label}${turnoLabel}`);
@@ -204,11 +195,28 @@ export default function Home() {
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
-      const { error: deleteError } = await supabase
-        .from('assignments')
-        .delete()
-        .eq('fecha', dateStr);
+      const { data: existingLock, error: lockError } = await supabase
+        .from('processed_dates')
+        .select('fecha')
+        .eq('fecha', dateStr)
+        .single();
+      
+      if (lockError && lockError.code !== 'PGRST116') throw lockError;
+      const isAlreadyProcessed = !!existingLock; 
 
+      let confirmMessage = "";
+      if (isAlreadyProcessed) {
+        confirmMessage = "📅 Este día YA fue guardado anteriormente.\n\nSe guardarán los cambios en el equipo, pero las disponibilidades NO volverán a cambiar.";
+      } else {
+        confirmMessage = "🚀 Es la primera vez que guardas este día.\n\nSe actualizará la disponibilidad (+5% / -5%) de TODOS los usuarios automáticamente.\n\n¿Es la versión definitiva?";
+      }
+
+      if (!confirm(confirmMessage)) {
+        setIsSaving(false);
+        return;
+      }
+
+      const { error: deleteError } = await supabase.from('assignments').delete().eq('fecha', dateStr);
       if (deleteError) throw deleteError;
 
       const validAssignments = currentAssignments.filter(a => !disabledRoles.includes(a.role_id));
@@ -224,7 +232,29 @@ export default function Home() {
         if (insertError) throw insertError;
       }
 
-      alert("¡Guardado correctamente!");
+      if (!isAlreadyProcessed) {
+        console.log("Actualizando estadísticas...");
+        const workersIds = new Set(dataToInsert.map(a => a.user_id));
+
+        const updatesPromises = users.map(user => {
+            let currentDisp = user.disponibilidad ?? 100;
+            if (workersIds.has(user.id)) {
+                currentDisp -= 5; 
+            } else {
+                currentDisp += 5; 
+            }
+            if (currentDisp > 100) currentDisp = 100;
+            if (currentDisp < 0) currentDisp = 0;
+            return supabase.from('users').update({ disponibilidad: currentDisp }).eq('id', user.id);
+        });
+
+        await Promise.all(updatesPromises);
+        await supabase.from('processed_dates').insert([{ fecha: dateStr }]);
+        await refreshTeam();
+        alert("¡Guardado! Disponibilidades actualizadas correctamente.");
+      } else {
+        alert("¡Cambios guardados! (Sin alterar disponibilidades).");
+      }
       
       const { data } = await supabase.from('assignments').select('fecha');
       if (data) {
@@ -260,8 +290,6 @@ export default function Home() {
     }
   };
 
-  // 3. TERCERO: Renderizado Condicional (Los IFs)
-  // ---------------------------------------------
   if (authLoading) {
     return (
         <div className="h-screen w-full flex flex-col items-center justify-center gap-4 bg-slate-50">
@@ -274,13 +302,11 @@ export default function Home() {
   if (!session) return <LoginScreen />;
   if (loading) return <div className="p-10 text-center flex items-center justify-center gap-2"><Loader2 className="animate-spin"/> Cargando equipo...</div>;
 
-  // 4. CUARTO: Return Principal (HTML)
-  // ----------------------------------
   return (
     <main className="min-h-screen bg-slate-50 p-4 pb-24 md:p-8">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6">
         
-        {/* PANEL IZQUIERDO (Calendario) */}
+        {/* PANEL IZQUIERDO */}
         <div className="md:col-span-4 space-y-6">
           <Card>
             <CardHeader><CardTitle>Planificador</CardTitle></CardHeader>
@@ -312,7 +338,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* PANEL DERECHO (Lista de Puestos) */}
+        {/* PANEL DERECHO */}
         <div className="md:col-span-8 space-y-6" id="report-capture-area">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative">
             
@@ -352,7 +378,16 @@ export default function Home() {
 
             {/* SECCIONES */}
             <div className="space-y-8">
-              {SERVICE_SECTIONS.map((section) => (
+              {SERVICE_SECTIONS.map((section) => {
+                
+                // Filtro de usuarios
+                const sectionUsers = users.filter(user => {
+                    if (section.category === 'Banda') return user.es_banda;
+                    if (section.category === 'Jovenes') return user.es_jovenes;
+                    return true;
+                });
+
+                return (
                 <div key={section.title} className="border-b last:border-0 pb-4">
                   <h3 className="text-lg font-semibold text-slate-700 mb-3 flex items-center gap-2">
                     {section.title}
@@ -362,9 +397,13 @@ export default function Home() {
                   <div className="space-y-3 pl-2">
                     {section.items.map(item => {
                        const isDisabled = disabledRoles.includes(item.id);
+                       // Asignamos el icono a una variable para usarlo como componente
+                       const Icon = item.icon; 
+
                        return (
                         <div key={item.id} className="grid grid-cols-12 gap-4 items-center py-1">
                           
+                          {/* ETIQUETA + ICONO */}
                           <div className="col-span-4 flex items-center gap-2">
                              <button 
                                onClick={() => toggleRole(item.id)}
@@ -373,9 +412,11 @@ export default function Home() {
                              >
                                <Power size={14} />
                              </button>
-                             <span className={`font-medium text-sm transition-colors ${isDisabled ? "text-slate-300 decoration-slate-300 line-through" : "text-slate-600"}`}>
+                             <div className={`flex items-center gap-2 font-medium text-sm transition-colors ${isDisabled ? "text-slate-300 decoration-slate-300 line-through" : "text-slate-600"}`}>
+                               {/* Renderizamos el icono aquí */}
+                               <Icon size={16} className={isDisabled ? "text-slate-300" : "text-slate-500"} />
                                {item.label}
-                             </span>
+                             </div>
                           </div>
 
                           <div className="col-span-8 flex gap-2">
@@ -385,7 +426,7 @@ export default function Home() {
                                   slotId={item.id} 
                                   label={item.label} 
                                   capability={item.req} 
-                                  users={users} 
+                                  users={sectionUsers} 
                                   turno="AM" 
                                   disabled={isDisabled} 
                                 />
@@ -393,7 +434,7 @@ export default function Home() {
                                   slotId={item.id} 
                                   label={item.label} 
                                   capability={item.req} 
-                                  users={users} 
+                                  users={sectionUsers} 
                                   turno="PM" 
                                   disabled={isDisabled} 
                                 />
@@ -403,7 +444,7 @@ export default function Home() {
                                 slotId={item.id} 
                                 label={item.label} 
                                 capability={item.req} 
-                                users={users} 
+                                users={sectionUsers} 
                                 turno="AMBOS" 
                                 disabled={isDisabled} 
                               />
@@ -414,7 +455,7 @@ export default function Home() {
                     })}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
             
           </div>
