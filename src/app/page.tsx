@@ -56,7 +56,7 @@ const SERVICE_SECTIONS = [
     ]
   },
   {
-    title: 'Técnica', 
+    title: 'Sonido', 
     category: 'Sonido',
     id_dom: 'capture-tecnica', 
     items: [
@@ -448,7 +448,6 @@ export default function Home() {
       });
       text += `\n`;
     });
-    text += `_Generado con Inchinare App_`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
