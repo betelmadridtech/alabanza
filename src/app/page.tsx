@@ -27,8 +27,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Save, Loader2, Power, LogOut, 
   Mic, Guitar, Music, Drum, Sliders, Video, 
-  User, Keyboard, Zap,
-  Copy, Check, ImageIcon, Sparkles 
+  User, Keyboard, Zap, MessageCircle, // Icono para Indemn
+  Copy, Check, ImageIcon, Sparkles, Trash2 // Icono para borrar día
 } from "lucide-react";
 import { es } from "date-fns/locale";
 
@@ -40,6 +40,8 @@ const SERVICE_SECTIONS = [
     id_dom: 'capture-banda', 
     items: [
       { id: 'worshipLeader', label: 'Líder', req: 'voice', icon: User, emoji: '🎙️' },
+      // Aquí está el Indemn de Banda
+      //{ id: 'indemnMain', label: 'Indemn', req: 'indemn', icon: MessageCircle, emoji: '🙏' }, 
       { id: 'voice1', label: 'Voz 1', req: 'voice', icon: Mic, emoji: '🎤' },
       { id: 'voice2', label: 'Voz 2', req: 'voice', icon: Mic, emoji: '🎤' },
       { id: 'voice3', label: 'Voz 3', req: 'voice', icon: Mic, emoji: '🎤' }, 
@@ -71,7 +73,8 @@ const SERVICE_SECTIONS = [
       { id: 'youthLeader', label: 'Líder', req: 'voice', icon: User, emoji: '🗣️' },
       { id: 'youthVoice1', label: 'Voz 1', req: 'voice', icon: Mic, emoji: '🎤' },
       { id: 'youthVoice2', label: 'Voz 2', req: 'voice', icon: Mic, emoji: '🎤' },
-      { id: 'piano', label: 'Piano', req: 'piano', icon: Keyboard, emoji: '🎹' },
+      { id: 'indemnYouth', label: 'Indemn', req: 'indemn', icon: MessageCircle, emoji: '🙏' },
+      { id: 'youthPiano', label: 'Piano', req: 'piano', icon: Keyboard, emoji: '🎹' },
       { id: 'youthGuitar', label: 'Guitarra', req: 'guitar', icon: Guitar, emoji: '🎸' },
       { id: 'youthBass', label: 'Bajo', req: 'bass', icon: Music, emoji: '🎸' },
       { id: 'youthDrums', label: 'Batería', req: 'drums', icon: Drum, emoji: '🥁' },
@@ -103,6 +106,16 @@ export default function Home() {
   
   const [unavailableUsers, setUnavailableUsers] = useState<string[]>([]);
 
+  // --- FUNCIÓN CENTRALIZADA PARA REFRESCAR EL CALENDARIO ---
+  const refreshOccupiedDates = async () => {
+    const { data } = await supabase.from('assignments').select('fecha');
+    if (data) {
+      const uniqueDates = Array.from(new Set(data.map(item => item.fecha)))
+        .map(dateStr => new Date(dateStr + 'T00:00:00')); 
+      setOccupiedDates(uniqueDates);
+    }
+  };
+
   // --- EFECTOS ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -113,17 +126,10 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Cargar fechas ocupadas al iniciar o cambiar sesión
   useEffect(() => {
-    const fetchOccupiedDates = async () => {
-      const { data } = await supabase.from('assignments').select('fecha');
-      if (data) {
-        const uniqueDates = Array.from(new Set(data.map(item => item.fecha)))
-          .map(dateStr => new Date(dateStr + 'T00:00:00')); 
-        setOccupiedDates(uniqueDates);
-      }
-    };
-    if (session) fetchOccupiedDates();
-  }, [isSaving, session]);
+    if (session) refreshOccupiedDates();
+  }, [session]);
 
   useEffect(() => {
     const fetchUnavailable = async () => {
@@ -201,7 +207,38 @@ export default function Home() {
     setDisabledRoles(prev => prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]);
   };
 
-  // --- NUEVO HANDLER: AUTO SELECCIÓN CORREGIDO (MONTE CARLO) ---
+  // --- HANDLER: BORRAR DÍA COMPLETO ---
+  const handleDeleteDay = async () => {
+    if (!selectedDate) return;
+    if (!confirm("¿Seguro que quieres BORRAR TODA la organización de este día? El día quedará libre.")) return;
+
+    setIsSaving(true);
+    try {
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        // 1. Borrar de la base de datos
+        const { error } = await supabase.from('assignments').delete().eq('fecha', dateStr);
+        if (error) throw error;
+
+        // 2. Limpiar estado local
+        setAssignments([]);
+
+        // 3. Actualizar calendario
+        await refreshOccupiedDates();
+
+        alert("Día limpiado correctamente.");
+    } catch (e) {
+        console.error(e);
+        alert("Error al borrar el día.");
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  // --- HANDLER: AUTO SELECCIÓN (MONTE CARLO + GRUPOS) ---
   const handleAutoSchedule = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero.");
     
@@ -212,7 +249,7 @@ export default function Home() {
         const day = String(selectedDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
 
-        // 1. Calcular Requisitos (Qué puestos están activos y vacíos)
+        // 1. Calcular Requisitos
         const requirements: Record<string, number> = {};
         const allItems = SERVICE_SECTIONS.flatMap(s => s.items);
         const isSaturday = selectedDate.getDay() === 6;
@@ -225,7 +262,6 @@ export default function Home() {
              return !disabledRoles.includes(item.id); 
         });
 
-        // Contamos huecos vacíos
         relevantItems.forEach(item => {
             const isAssigned = currentAssignments.some(a => a.role_id === item.id);
             if (!isAssigned) {
@@ -240,31 +276,32 @@ export default function Home() {
             return;
         }
 
-        // 2. Ejecutar Algoritmo Generativo (Monte Carlo)
-        // NOTA: Pasamos 'unavailableUsers' para que el algoritmo filtre a los que no pueden ir.
+        // 2. Determinar Grupo Objetivo
+        // Si es sábado -> es_jovenes. Si no -> es_banda.
+        const requiredGroup = isSaturday ? 'es_jovenes' : 'es_banda';
+
+        // 3. Ejecutar Algoritmo
         const suggestions = generateAutoAssignments(
             users, 
             requirements, 
             dateStr,
-            unavailableUsers // Lista de bloqueados
+            unavailableUsers,
+            requiredGroup 
         );
 
         if (suggestions.length === 0) {
-            alert("No se encontraron candidatos adecuados con las restricciones actuales.");
+            alert("No se encontraron candidatos adecuados para este grupo.");
             setIsAutoGenerating(false);
             return;
         }
 
-        // 3. Aplicar sugerencias al ESTADO (Sin guardar en BD)
+        // 4. Aplicar sugerencias
         const newAssignments = [...currentAssignments];
-        const assignedRoleCounts: Record<string, number> = {};
 
-        // Vamos sugiriendo uno a uno
         suggestions.forEach(sug => {
-            // Buscamos un hueco VACÍO que coincida con el rol del usuario sugerido
             const targetSlot = relevantItems.find(item => 
-                item.req === sug.role && // Coincide habilidad
-                !newAssignments.some(a => a.role_id === item.id) // No está ocupado ya
+                item.req === sug.role && 
+                !newAssignments.some(a => a.role_id === item.id) 
             );
 
             if (targetSlot) {
@@ -278,7 +315,7 @@ export default function Home() {
         });
 
         setAssignments(newAssignments);
-        alert(`✨ Se han sugerido ${suggestions.length} personas basándose en disponibilidad y parejas.`);
+        alert(`✨ Se han sugerido ${suggestions.length} personas.`);
 
     } catch (e) {
         console.error(e);
@@ -341,13 +378,25 @@ export default function Home() {
       if (dataToInsert.length > 0) await supabase.from('assignments').insert(dataToInsert);
 
       if (!isAlreadyProcessed) {
+        // --- SOLUCIÓN DOBLE DEDUCCIÓN ---
         const workersIds = new Set(dataToInsert.map(a => a.user_id));
+        
         const updates = users.map(user => {
             let d = user.disponibilidad ?? 100;
-            d = workersIds.has(user.id) ? d - 5 : d + 5;
-            if(d > 100) d = 100; if(d < 0) d = 0;
+            
+            // Verificamos si el ID está en el Set de trabajadores únicos
+            if (workersIds.has(user.id)) {
+                d = d - 5; // Restamos UNA sola vez
+            } else {
+                d = d + 5; // Sumamos UNA sola vez
+            }
+
+            if(d > 100) d = 100; 
+            if(d < 0) d = 0;
+            
             return supabase.from('users').update({ disponibilidad: d }).eq('id', user.id);
         });
+        
         await Promise.all(updates);
         await supabase.from('processed_dates').insert([{ fecha: dateStr }]);
         await refreshTeam();
@@ -356,8 +405,8 @@ export default function Home() {
         alert("¡Cambios guardados!");
       }
 
-      const { data } = await supabase.from('assignments').select('fecha');
-      if(data) setOccupiedDates(Array.from(new Set(data.map(i => i.fecha))).map(d => new Date(d+'T00:00:00')));
+      // Actualizamos los puntos azules del calendario
+      await refreshOccupiedDates();
 
     } catch (error) { console.error(error); alert("Error al guardar."); } 
     finally { setIsSaving(false); }
@@ -546,7 +595,7 @@ export default function Home() {
                 <div className="flex gap-2">
                   <TeamManagerDialog users={users} onUpdate={refreshTeam} />
                   
-                  {/* --- NUEVO BOTÓN: AUTO SELECCIÓN --- */}
+                  {/* --- BOTÓN: AUTO SELECCIÓN --- */}
                   <Button 
                     variant="secondary" 
                     className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -669,7 +718,19 @@ export default function Home() {
                   </Button>
               </div>
 
-              <div className="w-full md:w-auto flex justify-center md:justify-end">
+              <div className="w-full md:w-auto flex justify-center md:justify-end gap-2">
+                  
+                  {/* BOTÓN BORRAR DÍA */}
+                  <Button 
+                    variant="destructive" 
+                    size="icon"
+                    onClick={handleDeleteDay}
+                    disabled={isSaving || !selectedDate}
+                    title="Borrar toda la organización de este día"
+                  >
+                    <Trash2 size={18} />
+                  </Button>
+
                   <Button className="gap-2 bg-blue-600 hover:bg-blue-700 w-full md:w-auto" onClick={handleSave} disabled={isSaving}>
                     {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />} Guardar
                   </Button>

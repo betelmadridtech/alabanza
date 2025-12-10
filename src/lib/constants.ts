@@ -8,6 +8,7 @@ export const GENERIC_ROLES = [
   { id: 'drums', label: 'Batería' },
   { id: 'bass', label: 'Bajo' },
   { id: 'media', label: 'Sonido' },
+  { id: 'indemn', label: 'Indemn' },
 ];
 
 // 2. MAPEO: Qué rol genérico pide cada puesto del planificador

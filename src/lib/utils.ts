@@ -11,17 +11,11 @@ export function cn(...inputs: ClassValue[]) {
 // ==========================================
 
 const WEIGHTS = {
-  BASE_ASSIGNMENT: 100,       // Base por cumplir el requisito
-  
-  // REGLA DEL 15%:
-  // Disponibilidad vale 1 punto por %. (100% = 100 ptos).
-  // Ser Titular (Primary) vale 15 puntos extra.
-  // Por tanto, un secundario necesita +15% disp para ganar al titular.
+  BASE_ASSIGNMENT: 100,       
   AVAILABILITY_MULTIPLIER: 1, 
   PRIMARY_ROLE_BONUS: 15,     
-  
-  PARTNER_TOGETHER_BONUS: 50, // Premio pareja junta
-  PARTNER_SEPARATED_PENALTY: -200, // Castigo fuerte separar pareja
+  PARTNER_TOGETHER_BONUS: 50, 
+  PARTNER_SEPARATED_PENALTY: -200, 
 };
 
 export type RoleRequirements = Record<string, number>;
@@ -30,10 +24,9 @@ interface AssignmentAttempt {
   userId: string;
   role: string;
   user: User;
-  isPrimary: boolean; // Marcamos si está ejerciendo su rol principal
+  isPrimary: boolean; 
 }
 
-// Helper para saber si un usuario puede hacer un rol (Ya sea como principal o secundario)
 function canUserPerformRole(user: User, roleRequired: string): boolean {
     if (user.primary_role === roleRequired) return true;
     if (user.roles && user.roles.includes(roleRequired)) return true;
@@ -47,19 +40,29 @@ function canUserPerformRole(user: User, roleRequired: string): boolean {
 function generateRandomCandidate(
   users: User[],
   requirements: RoleRequirements,
-  unavailableUserIds: string[]
+  unavailableUserIds: string[],
+  requiredGroup?: 'es_banda' | 'es_jovenes' // NUEVO PARÁMETRO
 ): AssignmentAttempt[] {
   const assignment: AssignmentAttempt[] = [];
   const assignedIds = new Set<string>();
 
   for (const [roleName, count] of Object.entries(requirements)) {
     
-    // A. Filtramos candidatos válidos (Titulares O Secundarios)
-    const validCandidates = users.filter(u => 
-      canUserPerformRole(u, roleName) &&   // Puede hacer el rol
-      !unavailableUserIds.includes(u.id) && 
-      !assignedIds.has(u.id)
-    );
+    // A. Filtramos candidatos válidos
+    const validCandidates = users.filter(u => {
+      // 1. ¿Puede hacer el rol?
+      const hasRole = canUserPerformRole(u, roleName);
+      // 2. ¿Está bloqueado hoy?
+      const isAvailable = !unavailableUserIds.includes(u.id);
+      // 3. ¿Ya fue elegido en este intento?
+      const isNotAssigned = !assignedIds.has(u.id);
+      
+      // 4. (NUEVO) ¿Pertenece al grupo correcto? (Banda o Jóvenes)
+      // Si requiredGroup es undefined, saltamos este check.
+      const isInGroup = requiredGroup ? u[requiredGroup] === true : true;
+
+      return hasRole && isAvailable && isNotAssigned && isInGroup;
+    });
 
     // B. Barajamos
     const shuffled = [...validCandidates].sort(() => Math.random() - 0.5);
@@ -72,7 +75,7 @@ function generateRandomCandidate(
           userId: u.id, 
           role: roleName, 
           user: u,
-          isPrimary: u.primary_role === roleName // Detectamos si es su rol fuerte
+          isPrimary: u.primary_role === roleName 
       });
       assignedIds.add(u.id);
     });
@@ -82,7 +85,7 @@ function generateRandomCandidate(
 }
 
 // ==========================================
-// 2. FUNCIÓN DE CALIDAD (FITNESS FUNCTION)
+// 2. FUNCIÓN DE CALIDAD
 // ==========================================
 
 function calculateFitness(team: AssignmentAttempt[]): number {
@@ -91,20 +94,14 @@ function calculateFitness(team: AssignmentAttempt[]): number {
 
   for (const assignment of team) {
     const user = assignment.user;
-
-    // 1. BASE
     score += WEIGHTS.BASE_ASSIGNMENT;
-
-    // 2. DISPONIBILIDAD (0 a 100 puntos)
     const avail = user.disponibilidad ?? 100;
     score += (avail * WEIGHTS.AVAILABILITY_MULTIPLIER);
 
-    // 3. ROL PRINCIPAL vs SECUNDARIO (La regla del 15%)
     if (assignment.isPrimary) {
-        score += WEIGHTS.PRIMARY_ROLE_BONUS; // +15 puntos
+        score += WEIGHTS.PRIMARY_ROLE_BONUS; 
     }
 
-    // 4. PAREJAS
     if (user.partner_id) {
       const isPartnerInTeam = teamIds.has(user.partner_id);
       if (isPartnerInTeam) {
@@ -125,17 +122,18 @@ export function generateAutoAssignments(
   users: User[],
   requirements: RoleRequirements,
   targetDate: string, 
-  unavailableUserIds: string[] = [] 
+  unavailableUserIds: string[],
+  requiredGroup?: 'es_banda' | 'es_jovenes' // AÑADIDO AQUÍ TAMBIÉN
 ) {
-  // LOGS para depuración
-  console.log(`🤖 Algoritmo V2 (Principal/Secundario) - Fecha: ${targetDate}`);
+  console.log(`🤖 Algoritmo V3 (Grupos) - Fecha: ${targetDate} - Grupo: ${requiredGroup}`);
   
   const ITERATIONS = 2000; 
   let bestTeam: AssignmentAttempt[] = [];
   let bestScore = -Infinity;
 
   for (let i = 0; i < ITERATIONS; i++) {
-    const candidateTeam = generateRandomCandidate(users, requirements, unavailableUserIds);
+    // Pasamos el grupo al generador
+    const candidateTeam = generateRandomCandidate(users, requirements, unavailableUserIds, requiredGroup);
     const score = calculateFitness(candidateTeam);
 
     if (score > bestScore) {
