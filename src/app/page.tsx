@@ -168,6 +168,31 @@ export default function Home() {
     if (session) loadScheduleForDate();
   }, [selectedDate, session, setAssignments]); 
 
+  // --- NUEVO EFECTO: LIMPIEZA AUTOMÁTICA DE DATOS ANTIGUOS ---
+  useEffect(() => {
+    const cleanupOldData = async () => {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      // Borra indisponibilidades anteriores a HOY (< dateStr)
+      const { error } = await supabase
+        .from('unavailability')
+        .delete()
+        .lt('fecha', dateStr);
+
+      if (error) console.error("Error limpiando datos antiguos:", error);
+    };
+
+    // Solo se ejecuta si hay una sesión activa (administrador logueado)
+    if (session) {
+        cleanupOldData();
+    }
+  }, [session]);
+
+
   // --- HANDLERS ---
   const handleLogout = async () => await supabase.auth.signOut();
   
@@ -277,7 +302,7 @@ export default function Home() {
             return user ? user.nombre : "Desconocido";
          };
 
-         // 👇 AQUI AÑADIMOS EL EMOJI
+         // Emojis agregados al texto copiado
          if (effectiveSplit) {
              text += `- ${item.emoji} ${item.label}: AM: ${getNames('AM')} | PM: ${getNames('PM')}\n`;
          } else {
