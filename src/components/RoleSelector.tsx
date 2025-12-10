@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, AlertCircle, CheckCircle2, CalendarX2 } from "lucide-react"; // Añadido icono CalendarX2
+import { XCircle, AlertCircle, CheckCircle2, CalendarX2, Star } from "lucide-react"; // Añadido Star
 
 interface RoleSelectorProps {
   slotId: string;       
@@ -78,27 +78,30 @@ export function RoleSelector({
 
   // --- 2. PREPARACIÓN DE DATOS ---
   
-  // A. Filtrar solo por CAPACIDAD (Ya no ocultamos a los no disponibles)
-  const qualifiedUsers = users.filter(user => 
-    user.roles && 
-    user.roles.includes(capability)
-  );
+  // A. Filtrar solo por CAPACIDAD (PRINCIPAL O SECUNDARIO)
+  const qualifiedUsers = users.filter(user => {
+    const isPrimary = user.primary_role === capability;
+    const isSecondary = user.roles && user.roles.includes(capability);
+    return isPrimary || isSecondary;
+  });
 
   // B. Enriquecer datos con estados
   const usersWithStatus = qualifiedUsers.map(user => {
     const conflict = getConflictInfo(user.id);
-    const isUnavailableToday = unavailableUsers.includes(user.id); // ¿Marcó que no puede?
+    const isUnavailableToday = unavailableUsers.includes(user.id); 
+    const isPrimary = user.primary_role === capability; // ¿Es su rol fuerte?
 
     return {
       ...user,
       conflictInfo: conflict,
       isBusy: !!conflict,
-      isUnavailableToday: isUnavailableToday, // Nuevo estado
+      isUnavailableToday: isUnavailableToday,
+      isPrimary: isPrimary, // Guardamos este dato para mostrar la estrella
       availability: user.disponibilidad ?? 100
     };
   });
 
-  // C. Ordenar (Prioridad: Disponible > Ocupado > No Disponible Hoy)
+  // C. Ordenar 
   const sortedUsers = usersWithStatus.sort((a, b) => {
     // 1. Si uno está "No disponible hoy" y el otro no, el no disponible va AL FINAL
     if (a.isUnavailableToday !== b.isUnavailableToday) {
@@ -110,7 +113,12 @@ export function RoleSelector({
         return a.isBusy ? 1 : -1; 
     }
 
-    // 3. Desempate por porcentaje
+    // 3. Priorizar TITULARES sobre SUPLENTES visualmente
+    if (a.isPrimary !== b.isPrimary) {
+        return a.isPrimary ? -1 : 1;
+    }
+
+    // 4. Desempate por porcentaje
     return b.availability - a.availability;
   });
 
@@ -127,8 +135,10 @@ export function RoleSelector({
       >
         <SelectTrigger className={`w-full ${!assignment ? "text-slate-400" : "text-black font-medium"}`}>
           {selectedUser ? (
-             <span className="truncate text-slate-800 font-medium">
+             <span className="truncate text-slate-800 font-medium flex items-center gap-1">
                 {selectedUser.nombre}
+                {/* Mostramos estrella si está asignado a su rol principal */}
+                {selectedUser.primary_role === capability && <Star size={10} className="text-amber-500 fill-amber-500" />}
              </span>
           ) : (
              <SelectValue placeholder={label || "Seleccionar..."} />
@@ -151,8 +161,6 @@ export function RoleSelector({
           ) : (
             sortedUsers.map((user) => {
               const isLowAvailability = user.availability < 20;
-              
-              // Está deshabilitado si tiene conflicto O si marcó no disponible
               const isDisabled = user.isBusy || user.isUnavailableToday; 
 
               return (
@@ -167,26 +175,24 @@ export function RoleSelector({
                 >
                   <div className="flex justify-between items-center w-full pr-2">
                     <div className="flex flex-col gap-0.5">
-                      {/* Nombre tachado si está deshabilitado */}
-                      <span className={`text-sm ${isLowAvailability ? "text-red-600 font-medium" : "text-slate-700"} ${isDisabled ? "line-through text-slate-400 decoration-slate-300" : ""}`}>
+                      {/* Nombre con Estrella si es Titular */}
+                      <span className={`text-sm flex items-center gap-1 ${isLowAvailability ? "text-red-600 font-medium" : "text-slate-700"} ${isDisabled ? "line-through text-slate-400 decoration-slate-300" : ""}`}>
                         {user.nombre}
+                        {user.isPrimary && <Star size={10} className="text-amber-500 fill-amber-500" />}
                       </span>
                       
                       {/* LÓGICA DE MENSAJES INFERIORES */}
                       {user.isUnavailableToday ? (
-                        /* CASO 1: NO DISPONIBLE HOY */
                         <span className="text-[10px] text-red-400 font-medium flex items-center gap-1">
                              <CalendarX2 size={10} /> No disponible hoy
                         </span>
                       ) : user.isBusy && user.conflictInfo ? (
-                        /* CASO 2: OCUPADO EN OTRO PUESTO */
                         <span className="text-[11px] text-amber-600 flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded w-fit">
                              <AlertCircle size={10} /> {user.conflictInfo.role_id}
                         </span>
                       ) : (
-                        /* CASO 3: DISPONIBLE (Info extra) */
                         <span className="text-[10px] text-slate-400">
-                            {user.availability >= 80 ? "Alta disponibilidad" : ""}
+                            {user.isPrimary ? "Rol Titular" : "Rol Secundario"}
                         </span>
                       )}
                     </div>
@@ -198,7 +204,6 @@ export function RoleSelector({
                                 {user.availability > 80 && <CheckCircle2 size={12} />}
                             </div>
                         )}
-                         {/* Si está ocupado por conflicto muestra OCUPADO, si es por fecha muestra X */}
                          {isDisabled && (
                             <span className="text-[10px] text-slate-400 font-medium">
                                 {user.isUnavailableToday ? "BAJA" : "OCUPADO"}
