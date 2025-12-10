@@ -27,8 +27,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Save, Loader2, Power, LogOut, 
   Mic, Guitar, Music, Drum, Sliders, Video, 
-  User, Keyboard, Zap, MessageCircle, // Icono para Indemn
-  Copy, Check, ImageIcon, Sparkles, Trash2 // Icono para borrar día
+  User, Keyboard, Zap, MessageCircle, 
+  Copy, Check, ImageIcon, Sparkles // Trash2 ELIMINADO para evitar errores
 } from "lucide-react";
 import { es } from "date-fns/locale";
 
@@ -40,8 +40,8 @@ const SERVICE_SECTIONS = [
     id_dom: 'capture-banda', 
     items: [
       { id: 'worshipLeader', label: 'Líder', req: 'voice', icon: User, emoji: '🎙️' },
-      // Aquí está el Indemn de Banda
-      //{ id: 'indemnMain', label: 'Indemn', req: 'indemn', icon: MessageCircle, emoji: '🙏' }, 
+      // Indemn Banda (Descomenta si lo quieres activar)
+      // { id: 'indemnMain', label: 'Indemn', req: 'indemn', icon: MessageCircle, emoji: '🙏' }, 
       { id: 'voice1', label: 'Voz 1', req: 'voice', icon: Mic, emoji: '🎤' },
       { id: 'voice2', label: 'Voz 2', req: 'voice', icon: Mic, emoji: '🎤' },
       { id: 'voice3', label: 'Voz 3', req: 'voice', icon: Mic, emoji: '🎤' }, 
@@ -71,9 +71,9 @@ const SERVICE_SECTIONS = [
     badge: 'Sábado',
     items: [
       { id: 'youthLeader', label: 'Líder', req: 'voice', icon: User, emoji: '🗣️' },
+      { id: 'indemnYouth', label: 'Indemn', req: 'indemn', icon: MessageCircle, emoji: '🙏' },
       { id: 'youthVoice1', label: 'Voz 1', req: 'voice', icon: Mic, emoji: '🎤' },
       { id: 'youthVoice2', label: 'Voz 2', req: 'voice', icon: Mic, emoji: '🎤' },
-      { id: 'indemnYouth', label: 'Indemn', req: 'indemn', icon: MessageCircle, emoji: '🙏' },
       { id: 'youthPiano', label: 'Piano', req: 'piano', icon: Keyboard, emoji: '🎹' },
       { id: 'youthGuitar', label: 'Guitarra', req: 'guitar', icon: Guitar, emoji: '🎸' },
       { id: 'youthBass', label: 'Bajo', req: 'bass', icon: Music, emoji: '🎸' },
@@ -207,38 +207,7 @@ export default function Home() {
     setDisabledRoles(prev => prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]);
   };
 
-  // --- HANDLER: BORRAR DÍA COMPLETO ---
-  const handleDeleteDay = async () => {
-    if (!selectedDate) return;
-    if (!confirm("¿Seguro que quieres BORRAR TODA la organización de este día? El día quedará libre.")) return;
-
-    setIsSaving(true);
-    try {
-        const year = selectedDate.getFullYear();
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const day = String(selectedDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-
-        // 1. Borrar de la base de datos
-        const { error } = await supabase.from('assignments').delete().eq('fecha', dateStr);
-        if (error) throw error;
-
-        // 2. Limpiar estado local
-        setAssignments([]);
-
-        // 3. Actualizar calendario
-        await refreshOccupiedDates();
-
-        alert("Día limpiado correctamente.");
-    } catch (e) {
-        console.error(e);
-        alert("Error al borrar el día.");
-    } finally {
-        setIsSaving(false);
-    }
-  };
-
-  // --- HANDLER: AUTO SELECCIÓN (MONTE CARLO + GRUPOS) ---
+  // --- HANDLER: AUTO SELECCIÓN ---
   const handleAutoSchedule = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero.");
     
@@ -277,7 +246,6 @@ export default function Home() {
         }
 
         // 2. Determinar Grupo Objetivo
-        // Si es sábado -> es_jovenes. Si no -> es_banda.
         const requiredGroup = isSaturday ? 'es_jovenes' : 'es_banda';
 
         // 3. Ejecutar Algoritmo
@@ -329,9 +297,9 @@ export default function Home() {
   const handleSave = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero");
     
+    // --- VALIDACIONES DE SIEMPRE ---
     const isSaturday = selectedDate.getDay() === 6;
     const effectiveSplit = isSaturday ? false : isSplitService;
-
     const allItems = SERVICE_SECTIONS.flatMap(s => s.items);
     const activeItems = allItems.filter(item => !disabledRoles.includes(item.id));
     const requiredTurnos = effectiveSplit ? ['AM', 'PM'] : ['AMBOS'];
@@ -343,10 +311,8 @@ export default function Home() {
           a.role_id === item.id && a.turno === turnoRequired && a.user_id 
         );
         const isSunday = selectedDate.getDay() === 0;
-        
         if (isSunday && item.id.toLowerCase().includes('youth')) return;
         if (isSaturday && !item.id.toLowerCase().includes('youth')) return;
-
         if (!hasAssignment) missingAssignments.push(`${item.label}${effectiveSplit ? ` (${turnoRequired})` : ''}`);
       });
     });
@@ -363,13 +329,28 @@ export default function Home() {
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
+      // 1. CHEQUEO: ¿YA ESTABA GUARDADO ESTE DÍA?
       const { data: existingLock } = await supabase.from('processed_dates').select('fecha').eq('fecha', dateStr).single();
       const isAlreadyProcessed = !!existingLock; 
 
-      if (!confirm(isAlreadyProcessed ? "📅 Guardar cambios (sin alterar disponibilidades)?" : "🚀 Primera vez guardando. ¿Actualizar disponibilidades (+5%/-5%)?")) {
+      const msg = isAlreadyProcessed 
+        ? "🔄 EDITAR ORGANIZACIÓN EXISTENTE:\nSe recalcularán las disponibilidades (+/- 10%) solo para las personas que cambien de estado (Trabajar <-> Descansar)."
+        : "🚀 NUEVA ORGANIZACIÓN:\nSe aplicará la regla estándar (+5% Descanso / -5% Trabajo).";
+
+      if (!confirm(msg)) {
         setIsSaving(false); return;
       }
 
+      // 2. SI ES EDICIÓN, NECESITAMOS SABER QUIÉN TRABAJABA ANTES DE BORRARLO
+      let oldWorkersIds = new Set<string>();
+      if (isAlreadyProcessed) {
+         const { data: oldAssignments } = await supabase.from('assignments').select('user_id').eq('fecha', dateStr);
+         if (oldAssignments) {
+            oldWorkersIds = new Set(oldAssignments.map(a => a.user_id));
+         }
+      }
+
+      // 3. BORRADO Y GUARDADO DE DATOS (ASSIGNMENTS)
       await supabase.from('assignments').delete().eq('fecha', dateStr);
       
       const validAssignments = currentAssignments.filter(a => !disabledRoles.includes(a.role_id));
@@ -377,39 +358,61 @@ export default function Home() {
       
       if (dataToInsert.length > 0) await supabase.from('assignments').insert(dataToInsert);
 
-      if (!isAlreadyProcessed) {
-        // --- SOLUCIÓN DOBLE DEDUCCIÓN ---
-        const workersIds = new Set(dataToInsert.map(a => a.user_id));
-        
-        const updates = users.map(user => {
-            let d = user.disponibilidad ?? 100;
-            
-            // Verificamos si el ID está en el Set de trabajadores únicos
-            if (workersIds.has(user.id)) {
-                d = d - 5; // Restamos UNA sola vez
-            } else {
-                d = d + 5; // Sumamos UNA sola vez
-            }
+      // 4. CÁLCULO INTELIGENTE DE DISPONIBILIDAD
+      // Conjunto de los NUEVOS trabajadores
+      const newWorkersIds = new Set(dataToInsert.map(a => a.user_id));
+      
+      const updates = users.map(user => {
+          let currentDisp = Number(user.disponibilidad ?? 100); 
+          let change = 0; // Cuánto vamos a sumar o restar
 
-            if(d > 100) d = 100; 
-            if(d < 0) d = 0;
-            
-            return supabase.from('users').update({ disponibilidad: d }).eq('id', user.id);
-        });
-        
-        await Promise.all(updates);
-        await supabase.from('processed_dates').insert([{ fecha: dateStr }]);
-        await refreshTeam();
-        alert("¡Guardado y estadísticas actualizadas!");
-      } else {
-        alert("¡Cambios guardados!");
+          if (!isAlreadyProcessed) {
+              // --- ESCENARIO A: PRIMERA VEZ (Estándar) ---
+              // Si trabaja: -5. Si descansa: +5.
+              change = newWorkersIds.has(user.id) ? -5 : 5;
+          } else {
+              // --- ESCENARIO B: CORRECCIÓN (Diferencial) ---
+              const wasWorking = oldWorkersIds.has(user.id);
+              const isWorking = newWorkersIds.has(user.id);
+
+              if (wasWorking && !isWorking) {
+                  // Antes trabajaba -> Ahora descansa (+10)
+                  change = 10;
+                  console.log(`🔄 ${user.nombre}: Sale del equipo (+10)`);
+              } else if (!wasWorking && isWorking) {
+                  // Antes descansaba -> Ahora trabaja (-10)
+                  change = -10;
+                  console.log(`🔄 ${user.nombre}: Entra al equipo (-10)`);
+              }
+          }
+
+          // Solo lanzamos actualización si hay cambio real
+          if (change !== 0) {
+              let newDisp = currentDisp + change;
+              if (newDisp > 100) newDisp = 100;
+              if (newDisp < 0) newDisp = 0;
+              return supabase.from('users').update({ disponibilidad: newDisp }).eq('id', user.id);
+          }
+          return null;
+      });
+      
+      await Promise.all(updates.filter(u => u !== null));
+
+      if (!isAlreadyProcessed) {
+          await supabase.from('processed_dates').insert([{ fecha: dateStr }]);
       }
 
-      // Actualizamos los puntos azules del calendario
+      await refreshTeam();
       await refreshOccupiedDates();
+      
+      alert("¡Organización actualizada correctamente!");
 
-    } catch (error) { console.error(error); alert("Error al guardar."); } 
-    finally { setIsSaving(false); }
+    } catch (error) { 
+        console.error("ERROR AL GUARDAR:", error); 
+        alert("Error al guardar. Revisa la consola."); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const handleCopyText = () => {
@@ -700,7 +703,7 @@ export default function Home() {
                   <Button 
                       variant="outline" 
                       onClick={handleCopyText} 
-                      className={`gap-2 border-slate-300 ${copied ? "text-green-600 bg-green-50 border-green-200" : "text-slate-600 hover:bg-slate-50"}`}
+                      className={`gap-2 border-slate-300`}
                   >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                       <span className="hidden sm:inline font-medium">{copied ? "Copiado" : "Copiar Texto"}</span>
@@ -710,26 +713,15 @@ export default function Home() {
                       variant="outline"
                       onClick={() => handleExport("report-capture-area")}
                       disabled={isExporting}
-                      className="gap-2 border-slate-300 text-slate-600 hover:bg-slate-50"
+                      className="gap-2 border-slate-300"
                   >
                       {isExporting ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
                       <span className="hidden sm:inline font-medium">Guardar Imagen</span>
                   </Button>
               </div>
 
+              {/* DERECHA: Solo botón Guardar (El botón borrar ha sido movido al historial) */}
               <div className="w-full md:w-auto flex justify-center md:justify-end gap-2">
-                  
-                  {/* BOTÓN BORRAR DÍA */}
-                  <Button 
-                    variant="destructive" 
-                    size="icon"
-                    onClick={handleDeleteDay}
-                    disabled={isSaving || !selectedDate}
-                    title="Borrar toda la organización de este día"
-                  >
-                    <Trash2 size={18} />
-                  </Button>
-
                   <Button className="gap-2 bg-blue-600 hover:bg-blue-700 w-full md:w-auto" onClick={handleSave} disabled={isSaving}>
                     {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />} Guardar
                   </Button>
