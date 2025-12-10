@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { XCircle, AlertCircle, CheckCircle2 } from "lucide-react"; 
+import { XCircle, AlertCircle, CheckCircle2, CalendarX2 } from "lucide-react"; // Añadido icono CalendarX2
 
 interface RoleSelectorProps {
   slotId: string;       
@@ -20,7 +20,7 @@ interface RoleSelectorProps {
   users: User[];
   turno: Turno | "AMBOS"; 
   disabled?: boolean;
-  unavailableUsers?: string[]; // 1. Nueva propiedad opcional
+  unavailableUsers?: string[]; 
 }
 
 export function RoleSelector({ 
@@ -30,7 +30,7 @@ export function RoleSelector({
   users, 
   turno, 
   disabled,
-  unavailableUsers = [] // 1. Valor por defecto (array vacío)
+  unavailableUsers = [] 
 }: RoleSelectorProps) {
   
   const { currentAssignments, addAssignment, removeAssignment, selectedDate } = useScheduleStore();
@@ -39,7 +39,6 @@ export function RoleSelector({
     (a) => a.role_id === slotId && a.turno === turno
   );
 
-  // Buscamos el objeto usuario completo del asignado actualmente
   const selectedUser = users.find(u => u.id === assignment?.user_id);
 
   // --- FUNCIÓN DE CONFLICTOS ---
@@ -78,27 +77,40 @@ export function RoleSelector({
   };
 
   // --- 2. PREPARACIÓN DE DATOS ---
-  // Filtramos por capacidad Y por disponibilidad marcada por el usuario
+  
+  // A. Filtrar solo por CAPACIDAD (Ya no ocultamos a los no disponibles)
   const qualifiedUsers = users.filter(user => 
     user.roles && 
-    user.roles.includes(capability) &&
-    !unavailableUsers.includes(user.id) // 2. Si el usuario marcó "No disponible", lo ocultamos
+    user.roles.includes(capability)
   );
 
+  // B. Enriquecer datos con estados
   const usersWithStatus = qualifiedUsers.map(user => {
     const conflict = getConflictInfo(user.id);
+    const isUnavailableToday = unavailableUsers.includes(user.id); // ¿Marcó que no puede?
+
     return {
       ...user,
       conflictInfo: conflict,
       isBusy: !!conflict,
+      isUnavailableToday: isUnavailableToday, // Nuevo estado
       availability: user.disponibilidad ?? 100
     };
   });
 
+  // C. Ordenar (Prioridad: Disponible > Ocupado > No Disponible Hoy)
   const sortedUsers = usersWithStatus.sort((a, b) => {
+    // 1. Si uno está "No disponible hoy" y el otro no, el no disponible va AL FINAL
+    if (a.isUnavailableToday !== b.isUnavailableToday) {
+        return a.isUnavailableToday ? 1 : -1;
+    }
+
+    // 2. Si ambos pueden hoy, miramos si están ocupados en otro puesto
     if (a.isBusy !== b.isBusy) {
         return a.isBusy ? 1 : -1; 
     }
+
+    // 3. Desempate por porcentaje
     return b.availability - a.availability;
   });
 
@@ -115,12 +127,10 @@ export function RoleSelector({
       >
         <SelectTrigger className={`w-full ${!assignment ? "text-slate-400" : "text-black font-medium"}`}>
           {selectedUser ? (
-             /* Si hay usuario, mostramos SOLO el nombre limpio */
              <span className="truncate text-slate-800 font-medium">
                 {selectedUser.nombre}
              </span>
           ) : (
-             /* Si no hay nadie, mostramos el placeholder */
              <SelectValue placeholder={label || "Seleccionar..."} />
           )}
         </SelectTrigger>
@@ -136,12 +146,14 @@ export function RoleSelector({
 
           {sortedUsers.length === 0 ? (
             <div className="p-4 text-sm text-slate-400 text-center italic">
-              Nadie disponible con rol: {capability}
+              Nadie con rol: {capability}
             </div>
           ) : (
             sortedUsers.map((user) => {
               const isLowAvailability = user.availability < 20;
-              const isDisabled = user.isBusy;
+              
+              // Está deshabilitado si tiene conflicto O si marcó no disponible
+              const isDisabled = user.isBusy || user.isUnavailableToday; 
 
               return (
                 <SelectItem 
@@ -150,20 +162,29 @@ export function RoleSelector({
                   disabled={isDisabled}
                   className={`
                     py-3 my-1 cursor-pointer border-b border-slate-50 last:border-0
-                    ${isDisabled ? "opacity-60 bg-slate-50" : "hover:bg-slate-50"}
+                    ${isDisabled ? "opacity-50 bg-slate-50" : "hover:bg-slate-50"}
                   `}
                 >
                   <div className="flex justify-between items-center w-full pr-2">
                     <div className="flex flex-col gap-0.5">
-                      <span className={`text-sm ${isLowAvailability ? "text-red-600 font-medium" : "text-slate-700"} ${isDisabled ? "line-through text-slate-400" : ""}`}>
+                      {/* Nombre tachado si está deshabilitado */}
+                      <span className={`text-sm ${isLowAvailability ? "text-red-600 font-medium" : "text-slate-700"} ${isDisabled ? "line-through text-slate-400 decoration-slate-300" : ""}`}>
                         {user.nombre}
                       </span>
                       
-                      {isDisabled && user.conflictInfo ? (
+                      {/* LÓGICA DE MENSAJES INFERIORES */}
+                      {user.isUnavailableToday ? (
+                        /* CASO 1: NO DISPONIBLE HOY */
+                        <span className="text-[10px] text-red-400 font-medium flex items-center gap-1">
+                             <CalendarX2 size={10} /> No disponible hoy
+                        </span>
+                      ) : user.isBusy && user.conflictInfo ? (
+                        /* CASO 2: OCUPADO EN OTRO PUESTO */
                         <span className="text-[11px] text-amber-600 flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded w-fit">
                              <AlertCircle size={10} /> {user.conflictInfo.role_id}
                         </span>
                       ) : (
+                        /* CASO 3: DISPONIBLE (Info extra) */
                         <span className="text-[10px] text-slate-400">
                             {user.availability >= 80 ? "Alta disponibilidad" : ""}
                         </span>
@@ -177,7 +198,12 @@ export function RoleSelector({
                                 {user.availability > 80 && <CheckCircle2 size={12} />}
                             </div>
                         )}
-                         {isDisabled && <span className="text-[10px] text-slate-400 font-medium">OCUPADO</span>}
+                         {/* Si está ocupado por conflicto muestra OCUPADO, si es por fecha muestra X */}
+                         {isDisabled && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                                {user.isUnavailableToday ? "BAJA" : "OCUPADO"}
+                            </span>
+                         )}
                     </div>
                   </div>
                 </SelectItem>

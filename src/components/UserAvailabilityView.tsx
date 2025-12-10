@@ -23,6 +23,10 @@ export function UserAvailabilityView({ user, onBack }: Props) {
   const [loading, setLoading] = useState(false); // Cargando inicial
   const [isSaving, setIsSaving] = useState(false); // Guardando cambios
 
+  // --- LÓGICA DE PERMISOS ---
+  // Si es de jóvenes, puede marcar sábados. Si no, solo domingos.
+  const canSelectSaturdays = user.es_jovenes; 
+
   // 1. CARGA INICIAL
   useEffect(() => {
     const fetchAvailability = async () => {
@@ -102,7 +106,7 @@ export function UserAvailabilityView({ user, onBack }: Props) {
   // Función auxiliar para saber si hay cambios pendientes
   const hasChanges = JSON.stringify(originalDates.sort()) !== JSON.stringify(selectedDates.sort());
 
-  // Convertimos los strings a Date objects para el calendario
+  // Convertimos los strings a Date objects para el calendario visualmente
   const blockedDatesObjects = selectedDates.map(dateStr => new Date(dateStr + 'T00:00:00'));
 
   return (
@@ -116,7 +120,11 @@ export function UserAvailabilityView({ user, onBack }: Props) {
            </Button>
            <div className="text-right">
              <CardTitle className="text-lg font-bold text-slate-800">Hola, {user.nombre.split(' ')[0]}</CardTitle>
-             <p className="text-xs text-slate-500">Marca los días que <span className="text-red-600 font-bold">NO</span> puedes venir</p>
+             <p className="text-xs text-slate-500">
+                {canSelectSaturdays 
+                    ? "Marca Sábados o Domingos que NO puedes" 
+                    : "Marca Domingos que NO puedes"}
+             </p>
            </div>
         </CardHeader>
         
@@ -132,15 +140,23 @@ export function UserAvailabilityView({ user, onBack }: Props) {
                   onSelect={handleDateSelect}
                   locale={es}
                   className="rounded-md border shadow-sm p-3 bg-white mb-4"
-                  // 👇 AQUÍ ESTÁ LA LÓGICA DE BLOQUEO DE DÍAS 👇
+                  // 👇 LÓGICA MODIFICADA PARA SÁBADOS Y DOMINGOS 👇
                   disabled={(date) => {
-                    // Deshabilitar pasado (ayer hacia atrás)
+                    // 1. Deshabilitar pasado (ayer hacia atrás)
                     const today = new Date();
                     today.setHours(0,0,0,0);
                     if (date < today) return true;
                     
-                    // Deshabilitar todo lo que NO sea Domingo (0)
-                    return date.getDay() !== 0;
+                    const dayOfWeek = date.getDay(); // 0 = Domingo, 6 = Sábado
+
+                    if (canSelectSaturdays) {
+                        // Si es de jóvenes, permitimos Domingo (0) Y Sábado (6)
+                        // Deshabilitamos si NO es 0 Y NO es 6
+                        return dayOfWeek !== 0 && dayOfWeek !== 6;
+                    } else {
+                        // Si no es de jóvenes, solo permitimos Domingo (0)
+                        return dayOfWeek !== 0;
+                    }
                   }}
                   modifiers={{
                     blocked: blockedDatesObjects
