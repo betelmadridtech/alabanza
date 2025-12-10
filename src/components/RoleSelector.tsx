@@ -137,8 +137,6 @@ export function RoleSelector({
           {selectedUser ? (
              <span className="truncate text-slate-800 font-medium flex items-center gap-1">
                 {selectedUser.nombre}
-                {/* Mostramos estrella si está asignado a su rol principal */}
-                {selectedUser.primary_role === capability && <Star size={10} className="text-amber-500 fill-amber-500" />}
              </span>
           ) : (
              <SelectValue placeholder={label || "Seleccionar..."} />
