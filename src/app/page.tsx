@@ -8,6 +8,9 @@ import { useScheduleStore } from "@/store/schedule";
 import { supabase } from "@/lib/supabase";
 import { User as UserType } from "@/types"; 
 
+// IMPORTAMOS LA FUNCIÓN DEL ALGORITMO
+import { generateAutoAssignments } from "@/lib/utils";
+
 // COMPONENTES DE VISTAS
 import { LoginScreen } from "@/components/LoginScreen";
 import { TeamManagerDialog } from "@/components/TeamManagerDialog";
@@ -25,7 +28,7 @@ import {
   Save, Loader2, Power, LogOut, 
   Mic, Guitar, Music, Drum, Sliders, Video, 
   User, Keyboard, Zap,
-  Copy, Check, ImageIcon
+  Copy, Check, ImageIcon, Sparkles // Agregamos Sparkles
 } from "lucide-react";
 import { es } from "date-fns/locale";
 
@@ -90,6 +93,7 @@ export default function Home() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false); // Estado para el loading del botón nuevo
   
   // Inicializamos disabled roles con las voces extras apagadas
   const [disabledRoles, setDisabledRoles] = useState<string[]>(['voice5', 'voice6']);
@@ -200,6 +204,103 @@ export default function Home() {
     setDisabledRoles(prev => prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]);
   };
 
+  // --- NUEVO HANDLER: AUTO SELECCIÓN ---
+  const handleAutoSchedule = async () => {
+    if (!selectedDate) return alert("Por favor selecciona una fecha primero.");
+    
+    setIsAutoGenerating(true);
+    try {
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        // 1. Obtener Disponibilidades (Asumiendo que tienes una tabla 'availability' o similar para disponibilidades positivas)
+        // NOTA: Si no tienes tabla de 'si puedo', el algoritmo trabajará solo con los datos que tenga o devolverá vacío.
+        const { data: availabilities, error } = await supabase
+            .from('availability') 
+            .select('*')
+            .eq('date', dateStr);
+
+        if (error) console.warn("No se pudieron cargar disponibilidades detalladas", error);
+
+        // 2. Calcular Requisitos (Qué puestos están activos y vacíos)
+        const requirements: Record<string, number> = {};
+        const allItems = SERVICE_SECTIONS.flatMap(s => s.items);
+        const isSaturday = selectedDate.getDay() === 6;
+        const isSunday = selectedDate.getDay() === 0;
+
+        // Filtramos items según el día (igual que en el render)
+        const relevantItems = allItems.filter(item => {
+             if (isSunday && item.id.toLowerCase().includes('youth')) return false;
+             if (isSaturday && !item.id.toLowerCase().includes('youth')) return false;
+             return !disabledRoles.includes(item.id); // Solo puestos activos
+        });
+
+        // Contamos cuántos de cada rol ('req') necesitamos
+        relevantItems.forEach(item => {
+            // Solo pedimos si el hueco NO está asignado ya
+            const isAssigned = currentAssignments.some(a => a.role_id === item.id);
+            if (!isAssigned) {
+                const roleName = item.req; // 'voice', 'guitar', etc.
+                requirements[roleName] = (requirements[roleName] || 0) + 1;
+            }
+        });
+
+        if (Object.keys(requirements).length === 0) {
+            alert("Todos los puestos activos ya están cubiertos.");
+            setIsAutoGenerating(false);
+            return;
+        }
+
+        // 3. Ejecutar Algoritmo
+        const suggestions = generateAutoAssignments(
+            users, 
+            availabilities || [], // Pasamos array vacío si falló la carga
+            requirements, 
+            dateStr
+        );
+
+        if (suggestions.length === 0) {
+            alert("No se encontraron candidatos disponibles para los puestos vacíos.");
+            setIsAutoGenerating(false);
+            return;
+        }
+
+        // 4. Aplicar sugerencias a los huecos específicos
+        const newAssignments = [...currentAssignments];
+        
+        // Vamos sugiriendo uno a uno
+        suggestions.forEach(sug => {
+            // Buscamos un hueco VACÍO que coincida con el rol del usuario sugerido
+            // y que sea relevante para el día de hoy
+            const targetSlot = relevantItems.find(item => 
+                item.req === sug.role && // Coincide habilidad
+                !newAssignments.some(a => a.role_id === item.id) // No está ocupado ya en local
+            );
+
+            if (targetSlot) {
+                newAssignments.push({
+                    user_id: sug.userId,
+                    role_id: targetSlot.id,
+                    fecha: new Date(dateStr), // Ajuste de tipo Date para visualización local
+                    turno: 'AMBOS' // Por defecto asignamos turno completo en auto
+                } as any);
+            }
+        });
+
+        setAssignments(newAssignments);
+        alert(`✨ Se han sugerido ${suggestions.length} personas automáticamente.`);
+
+    } catch (e) {
+        console.error(e);
+        alert("Error generando organización automática.");
+    } finally {
+        setIsAutoGenerating(false);
+    }
+  };
+
+
   const handleSave = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero");
     
@@ -296,10 +397,10 @@ export default function Home() {
       
       activeItemsInSection.forEach(item => {
          const getNames = (turno: string) => {
-            const assignment = currentAssignments.find(a => a.role_id === item.id && a.turno === turno);
-            if (!assignment) return "Pendiente";
-            const user = users.find(u => u.id === assignment.user_id);
-            return user ? user.nombre : "Desconocido";
+           const assignment = currentAssignments.find(a => a.role_id === item.id && a.turno === turno);
+           if (!assignment) return "Pendiente";
+           const user = users.find(u => u.id === assignment.user_id);
+           return user ? user.nombre : "Desconocido";
          };
 
          // Emojis agregados al texto copiado
@@ -461,6 +562,18 @@ export default function Home() {
                 </div>
                 <div className="flex gap-2">
                   <TeamManagerDialog users={users} onUpdate={refreshTeam} />
+                  
+                  {/* --- NUEVO BOTÓN: AUTO SELECCIÓN --- */}
+                  <Button 
+                    variant="secondary" 
+                    className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={handleAutoSchedule}
+                    disabled={isAutoGenerating || !selectedDate}
+                  >
+                     {isAutoGenerating ? <Loader2 className="animate-spin h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                     Auto-Organizar
+                  </Button>
+
                   <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={handleLogout}><LogOut size={20} /></Button>
                 </div>
               </div>
@@ -521,7 +634,7 @@ export default function Home() {
 
                   {/* LÓGICA PARA SÁBADOS (DÍA 6) */}
                   {selectedDate?.getDay() === 6 && (
-                       <div className="w-full max-w-2xl mx-auto">
+                        <div className="w-full max-w-2xl mx-auto">
                            <div className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm">
                                 <h3 className="text-lg font-bold text-slate-700 mb-4 flex gap-2">
                                     Jóvenes <Badge className="bg-slate-800">Sábado</Badge>
