@@ -10,7 +10,10 @@ export interface User {
   disponibilidad: number;
   es_banda?: boolean;
   es_jovenes?: boolean;
+  primary_role?: string;
   roles?: string[];
+  // NUEVO CAMPO: Referencia al ID de su pareja (si la tiene)
+  partner_id?: string | null; 
 }
 
 /*export interface Role {
@@ -21,17 +24,17 @@ export interface User {
 }*/
 
 export interface Assignment {
-  id?: string; // Opcional porque al crearla aun no tiene ID de base de datos
+  id?: string; 
   fecha: Date;
   user_id: string;
   role_id: string;
   turno: Turno;
 }
 
-// Esta interfaz nos ayuda a mostrar la lista combinada en el calendario
 export interface AssignmentWithDetails extends Assignment {
   user: User;
 }
+
 export interface UserRole {
   user_id: string;
   role_id: number;

@@ -28,7 +28,7 @@ import {
   Save, Loader2, Power, LogOut, 
   Mic, Guitar, Music, Drum, Sliders, Video, 
   User, Keyboard, Zap,
-  Copy, Check, ImageIcon, Sparkles // Agregamos Sparkles
+  Copy, Check, ImageIcon, Sparkles 
 } from "lucide-react";
 import { es } from "date-fns/locale";
 
@@ -93,9 +93,8 @@ export default function Home() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isAutoGenerating, setIsAutoGenerating] = useState(false); // Estado para el loading del botón nuevo
+  const [isAutoGenerating, setIsAutoGenerating] = useState(false); 
   
-  // Inicializamos disabled roles con las voces extras apagadas
   const [disabledRoles, setDisabledRoles] = useState<string[]>(['voice5', 'voice6']);
   
   const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
@@ -181,7 +180,6 @@ export default function Home() {
       const day = String(today.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
-      // Borra indisponibilidades anteriores a HOY (< dateStr)
       const { error } = await supabase
         .from('unavailability')
         .delete()
@@ -190,7 +188,6 @@ export default function Home() {
       if (error) console.error("Error limpiando datos antiguos:", error);
     };
 
-    // Solo se ejecuta si hay una sesión activa (administrador logueado)
     if (session) {
         cleanupOldData();
     }
@@ -204,7 +201,7 @@ export default function Home() {
     setDisabledRoles(prev => prev.includes(slotId) ? prev.filter(id => id !== slotId) : [...prev, slotId]);
   };
 
-  // --- NUEVO HANDLER: AUTO SELECCIÓN ---
+  // --- NUEVO HANDLER: AUTO SELECCIÓN CORREGIDO (MONTE CARLO) ---
   const handleAutoSchedule = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero.");
     
@@ -215,34 +212,24 @@ export default function Home() {
         const day = String(selectedDate.getDate()).padStart(2, '0');
         const dateStr = `${year}-${month}-${day}`;
 
-        // 1. Obtener Disponibilidades (Asumiendo que tienes una tabla 'availability' o similar para disponibilidades positivas)
-        // NOTA: Si no tienes tabla de 'si puedo', el algoritmo trabajará solo con los datos que tenga o devolverá vacío.
-        const { data: availabilities, error } = await supabase
-            .from('availability') 
-            .select('*')
-            .eq('date', dateStr);
-
-        if (error) console.warn("No se pudieron cargar disponibilidades detalladas", error);
-
-        // 2. Calcular Requisitos (Qué puestos están activos y vacíos)
+        // 1. Calcular Requisitos (Qué puestos están activos y vacíos)
         const requirements: Record<string, number> = {};
         const allItems = SERVICE_SECTIONS.flatMap(s => s.items);
         const isSaturday = selectedDate.getDay() === 6;
         const isSunday = selectedDate.getDay() === 0;
 
-        // Filtramos items según el día (igual que en el render)
+        // Filtramos items según el día
         const relevantItems = allItems.filter(item => {
              if (isSunday && item.id.toLowerCase().includes('youth')) return false;
              if (isSaturday && !item.id.toLowerCase().includes('youth')) return false;
-             return !disabledRoles.includes(item.id); // Solo puestos activos
+             return !disabledRoles.includes(item.id); 
         });
 
-        // Contamos cuántos de cada rol ('req') necesitamos
+        // Contamos huecos vacíos
         relevantItems.forEach(item => {
-            // Solo pedimos si el hueco NO está asignado ya
             const isAssigned = currentAssignments.some(a => a.role_id === item.id);
             if (!isAssigned) {
-                const roleName = item.req; // 'voice', 'guitar', etc.
+                const roleName = item.req; 
                 requirements[roleName] = (requirements[roleName] || 0) + 1;
             }
         });
@@ -253,44 +240,45 @@ export default function Home() {
             return;
         }
 
-        // 3. Ejecutar Algoritmo
+        // 2. Ejecutar Algoritmo Generativo (Monte Carlo)
+        // NOTA: Pasamos 'unavailableUsers' para que el algoritmo filtre a los que no pueden ir.
         const suggestions = generateAutoAssignments(
             users, 
-            availabilities || [], // Pasamos array vacío si falló la carga
             requirements, 
-            dateStr
+            dateStr,
+            unavailableUsers // Lista de bloqueados
         );
 
         if (suggestions.length === 0) {
-            alert("No se encontraron candidatos disponibles para los puestos vacíos.");
+            alert("No se encontraron candidatos adecuados con las restricciones actuales.");
             setIsAutoGenerating(false);
             return;
         }
 
-        // 4. Aplicar sugerencias a los huecos específicos
+        // 3. Aplicar sugerencias al ESTADO (Sin guardar en BD)
         const newAssignments = [...currentAssignments];
-        
+        const assignedRoleCounts: Record<string, number> = {};
+
         // Vamos sugiriendo uno a uno
         suggestions.forEach(sug => {
             // Buscamos un hueco VACÍO que coincida con el rol del usuario sugerido
-            // y que sea relevante para el día de hoy
             const targetSlot = relevantItems.find(item => 
                 item.req === sug.role && // Coincide habilidad
-                !newAssignments.some(a => a.role_id === item.id) // No está ocupado ya en local
+                !newAssignments.some(a => a.role_id === item.id) // No está ocupado ya
             );
 
             if (targetSlot) {
                 newAssignments.push({
                     user_id: sug.userId,
                     role_id: targetSlot.id,
-                    fecha: new Date(dateStr), // Ajuste de tipo Date para visualización local
-                    turno: 'AMBOS' // Por defecto asignamos turno completo en auto
+                    fecha: new Date(dateStr), 
+                    turno: 'AMBOS' 
                 } as any);
             }
         });
 
         setAssignments(newAssignments);
-        alert(`✨ Se han sugerido ${suggestions.length} personas automáticamente.`);
+        alert(`✨ Se han sugerido ${suggestions.length} personas basándose en disponibilidad y parejas.`);
 
     } catch (e) {
         console.error(e);
@@ -403,7 +391,6 @@ export default function Home() {
            return user ? user.nombre : "Desconocido";
          };
 
-         // Emojis agregados al texto copiado
          if (effectiveSplit) {
              text += `- ${item.emoji} ${item.label}: AM: ${getNames('AM')} | PM: ${getNames('PM')}\n`;
          } else {
@@ -465,7 +452,6 @@ export default function Home() {
     }
   };
 
-  // --- FUNCIÓN AUXILIAR PARA RENDERIZAR UNA FILA (ITEM) ---
   const renderRoleRow = (item: any, category: string) => {
     const isDisabled = disabledRoles.includes(item.id);
     const Icon = item.icon; 
@@ -507,9 +493,6 @@ export default function Home() {
         </div>
     );
   };
-
-
-  // --- RENDERIZADO PRINCIPAL ---
 
   if (authLoading) return <div className="h-screen w-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
 
@@ -580,7 +563,6 @@ export default function Home() {
 
               <div id="service-grid-layout" className="flex flex-col gap-6">
                   
-                  {/* LÓGICA PARA DOMINGOS (DÍA 0) */}
                   {selectedDate?.getDay() === 0 && (
                       <>
                         <div id="capture-banda" className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm">
@@ -589,7 +571,6 @@ export default function Home() {
                              </div>
                              
                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                {/* INSTRUMENTOS */}
                                 <div>
                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 pl-1">Instrumentos</h4>
                                     <div className="space-y-3">
@@ -602,7 +583,6 @@ export default function Home() {
                                     </div>
                                 </div>
 
-                                {/* VOCES */}
                                 <div>
                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 pl-1">Voces</h4>
                                     <div className="space-y-3">
@@ -632,7 +612,6 @@ export default function Home() {
                       </>
                   )}
 
-                  {/* LÓGICA PARA SÁBADOS (DÍA 6) */}
                   {selectedDate?.getDay() === 6 && (
                         <div className="w-full max-w-2xl mx-auto">
                            <div className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm">
@@ -669,7 +648,6 @@ export default function Home() {
                   <span className="text-xs font-medium text-slate-400 hidden lg:block">Inchinare Team</span>
               </div>
 
-              {/* BOTONES GEMELOS */}
               <div className="flex items-center gap-3">
                   <Button 
                       variant="outline" 
