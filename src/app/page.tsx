@@ -22,45 +22,41 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
-  Save, Download, Loader2, Power, LogOut, 
+  Save, Loader2, Power, LogOut, 
   Mic, Guitar, Music, Drum, Sliders, Video, 
-  Users, User, Keyboard, Zap,
-  Copy, Check, ChevronDown, ImageIcon
+  User, Keyboard, Zap,
+  Copy, Check, ImageIcon
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { es } from "date-fns/locale";
 
-// DEFINICIÓN DE LA ESTRUCTURA
+// DEFINICIÓN DE LA ESTRUCTURA CON EMOJIS
 const SERVICE_SECTIONS = [
   {
     title: 'Banda',
     category: 'Banda',
     id_dom: 'capture-banda', 
     items: [
-      { id: 'worshipLeader', label: 'Líder', req: 'voice', icon: User },
-      { id: 'voice1', label: 'Voz 1', req: 'voice', icon: Mic },
-      { id: 'voice2', label: 'Voz 2', req: 'voice', icon: Mic },
-      { id: 'voice3', label: 'Voz 3', req: 'voice', icon: Mic }, 
-      { id: 'voice4', label: 'Voz 4', req: 'voice', icon: Mic }, 
-      { id: 'piano', label: 'Piano', req: 'piano', icon: Keyboard },
-      { id: 'acousticGuitar', label: 'Acústica', req: 'guitar', icon: Guitar },
-      { id: 'bass', label: 'Bajo', req: 'bass', icon: Music },
-      { id: 'drums', label: 'Batería', req: 'drums', icon: Drum },
-      { id: 'electricGuitar', label: 'Eléctrica', req: 'guitar', icon: Zap },
+      { id: 'worshipLeader', label: 'Líder', req: 'voice', icon: User, emoji: '🎙️' },
+      { id: 'voice1', label: 'Voz 1', req: 'voice', icon: Mic, emoji: '🎤' },
+      { id: 'voice2', label: 'Voz 2', req: 'voice', icon: Mic, emoji: '🎤' },
+      { id: 'voice3', label: 'Voz 3', req: 'voice', icon: Mic, emoji: '🎤' }, 
+      { id: 'voice4', label: 'Voz 4', req: 'voice', icon: Mic, emoji: '🎤' },
+      { id: 'voice5', label: 'Voz 5', req: 'voice', icon: Mic, emoji: '🎤' }, 
+      { id: 'voice6', label: 'Voz 6', req: 'voice', icon: Mic, emoji: '🎤' }, 
+      { id: 'piano', label: 'Piano', req: 'piano', icon: Keyboard, emoji: '🎹' },
+      { id: 'acousticGuitar', label: 'Acústica', req: 'guitar', icon: Guitar, emoji: '🎸' },
+      { id: 'bass', label: 'Bajo', req: 'bass', icon: Music, emoji: '🎸' },
+      { id: 'drums', label: 'Batería', req: 'drums', icon: Drum, emoji: '🥁' },
+      { id: 'electricGuitar', label: 'Eléctrica', req: 'guitar', icon: Zap, emoji: '⚡' },
     ]
   },
   {
-    title: 'Técnica (Sonido & Streaming)', 
+    title: 'Técnica', 
     category: 'Sonido',
     id_dom: 'capture-tecnica', 
     items: [
-      { id: 'sound', label: 'Sala', req: 'media', icon: Sliders }, 
-      { id: 'streaming', label: 'Streaming', req: 'media', icon: Video }, 
+      { id: 'sound', label: 'Sala', req: 'media', icon: Sliders, emoji: '🎚️' }, 
+      { id: 'streaming', label: 'Streaming', req: 'media', icon: Video, emoji: '🎥' }, 
     ]
   },
   {
@@ -69,12 +65,13 @@ const SERVICE_SECTIONS = [
     id_dom: 'capture-jovenes',
     badge: 'Sábado',
     items: [
-      { id: 'youthLeader', label: 'Líder', req: 'voice', icon: User },
-      { id: 'youthVoice1', label: 'Voz 1', req: 'voice', icon: Mic },
-      { id: 'youthVoice2', label: 'Voz 2', req: 'voice', icon: Mic }, 
-      { id: 'youthGuitar', label: 'Guitarra', req: 'guitar', icon: Guitar },
-      { id: 'youthBass', label: 'Bajo', req: 'bass', icon: Music },
-      { id: 'youthDrums', label: 'Batería', req: 'drums', icon: Drum },
+      { id: 'youthLeader', label: 'Líder', req: 'voice', icon: User, emoji: '🗣️' },
+      { id: 'youthVoice1', label: 'Voz 1', req: 'voice', icon: Mic, emoji: '🎤' },
+      { id: 'youthVoice2', label: 'Voz 2', req: 'voice', icon: Mic, emoji: '🎤' },
+      { id: 'piano', label: 'Piano', req: 'piano', icon: Keyboard, emoji: '🎹' },
+      { id: 'youthGuitar', label: 'Guitarra', req: 'guitar', icon: Guitar, emoji: '🎸' },
+      { id: 'youthBass', label: 'Bajo', req: 'bass', icon: Music, emoji: '🎸' },
+      { id: 'youthDrums', label: 'Batería', req: 'drums', icon: Drum, emoji: '🥁' },
     ]
   }
 ];
@@ -93,12 +90,14 @@ export default function Home() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [disabledRoles, setDisabledRoles] = useState<string[]>([]);
+  
+  // Inicializamos disabled roles con las voces extras apagadas
+  const [disabledRoles, setDisabledRoles] = useState<string[]>(['voice5', 'voice6']);
+  
   const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [copied, setCopied] = useState(false);
   
-  // 1. ESTADO PARA LOS USUARIOS NO DISPONIBLES (NUEVO)
   const [unavailableUsers, setUnavailableUsers] = useState<string[]>([]);
 
   // --- EFECTOS ---
@@ -123,7 +122,6 @@ export default function Home() {
     if (session) fetchOccupiedDates();
   }, [isSaving, session]);
 
-  // 2. EFECTO PARA CARGAR "NO DISPONIBLES" CUANDO CAMBIA LA FECHA (NUEVO)
   useEffect(() => {
     const fetchUnavailable = async () => {
       if (!selectedDate) {
@@ -149,7 +147,7 @@ export default function Home() {
     };
 
     if (session) fetchUnavailable();
-  }, [selectedDate, session]); // Se ejecuta al cambiar la fecha
+  }, [selectedDate, session]); 
 
 
   useEffect(() => {
@@ -180,9 +178,12 @@ export default function Home() {
   const handleSave = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero");
     
+    const isSaturday = selectedDate.getDay() === 6;
+    const effectiveSplit = isSaturday ? false : isSplitService;
+
     const allItems = SERVICE_SECTIONS.flatMap(s => s.items);
     const activeItems = allItems.filter(item => !disabledRoles.includes(item.id));
-    const requiredTurnos = isSplitService ? ['AM', 'PM'] : ['AMBOS'];
+    const requiredTurnos = effectiveSplit ? ['AM', 'PM'] : ['AMBOS'];
     const missingAssignments: string[] = [];
 
     activeItems.forEach(item => {
@@ -190,7 +191,12 @@ export default function Home() {
         const hasAssignment = currentAssignments.some(a => 
           a.role_id === item.id && a.turno === turnoRequired && a.user_id 
         );
-        if (!hasAssignment) missingAssignments.push(`${item.label}${isSplitService ? ` (${turnoRequired})` : ''}`);
+        const isSunday = selectedDate.getDay() === 0;
+        
+        if (isSunday && item.id.toLowerCase().includes('youth')) return;
+        if (isSaturday && !item.id.toLowerCase().includes('youth')) return;
+
+        if (!hasAssignment) missingAssignments.push(`${item.label}${effectiveSplit ? ` (${turnoRequired})` : ''}`);
       });
     });
 
@@ -249,7 +255,15 @@ export default function Home() {
     const dateStr = selectedDate.toLocaleDateString('es-ES', { dateStyle: 'full' });
     let text = `🗓️ *PLANIFICACIÓN - ${dateStr.toUpperCase()}*\n\n`;
 
+    const isSaturday = selectedDate.getDay() === 6;
+    const isSunday = selectedDate.getDay() === 0;
+    
+    const effectiveSplit = isSaturday ? false : isSplitService;
+
     SERVICE_SECTIONS.forEach(section => {
+      if (isSunday && section.category === 'Jovenes') return;
+      if (isSaturday && section.category !== 'Jovenes') return;
+
       const activeItemsInSection = section.items.filter(item => !disabledRoles.includes(item.id));
       if (activeItemsInSection.length === 0) return;
 
@@ -263,10 +277,11 @@ export default function Home() {
             return user ? user.nombre : "Desconocido";
          };
 
-         if (isSplitService) {
-             text += `- ${item.label}: AM: ${getNames('AM')} | PM: ${getNames('PM')}\n`;
+         // 👇 AQUI AÑADIMOS EL EMOJI
+         if (effectiveSplit) {
+             text += `- ${item.emoji} ${item.label}: AM: ${getNames('AM')} | PM: ${getNames('PM')}\n`;
          } else {
-             text += `- ${item.label}: ${getNames('AMBOS')}\n`;
+             text += `- ${item.emoji} ${item.label}: ${getNames('AMBOS')}\n`;
          }
       });
       text += `\n`;
@@ -300,18 +315,9 @@ export default function Home() {
             padding: '40px'
         },
         onClone: (clonedNode: HTMLElement) => {
-            if (targetId === "report-capture-area") {
-                const gridElement = clonedNode.querySelector('#service-grid-layout');
-                if (gridElement instanceof HTMLElement) { 
-                    gridElement.style.display = 'grid';
-                    gridElement.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-                    gridElement.style.gap = '24px'; 
-                }
-            } else {
-                clonedNode.style.borderRadius = '0';
-                clonedNode.style.boxShadow = 'none';
-                clonedNode.style.border = 'none';
-            }
+            clonedNode.style.borderRadius = '0';
+            clonedNode.style.boxShadow = 'none';
+            clonedNode.style.border = 'none';
         }
       } as any;
 
@@ -333,56 +339,44 @@ export default function Home() {
     }
   };
 
-  const renderSection = (section: typeof SERVICE_SECTIONS[0]) => {
+  // --- FUNCIÓN AUXILIAR PARA RENDERIZAR UNA FILA (ITEM) ---
+  const renderRoleRow = (item: any, category: string) => {
+    const isDisabled = disabledRoles.includes(item.id);
+    const Icon = item.icon; 
+    
     const sectionUsers = users.filter(user => {
-        if (section.category === 'Banda') return user.es_banda;
-        if (section.category === 'Jovenes') return user.es_jovenes;
+        if (category === 'Banda') return user.es_banda;
+        if (category === 'Jovenes') return user.es_jovenes;
         return true;
     });
 
+    const isSaturday = selectedDate?.getDay() === 6;
+    const showSplit = isSplitService && !isSaturday; 
+
     return (
-        <div id={section.id_dom} key={section.title} className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm h-full">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
-                {section.title}
-                {section.badge && <Badge className="bg-slate-800 text-white">{section.badge}</Badge>}
-                </h3>
-            </div>
-            
-            <div className="space-y-3">
-            {section.items.map(item => {
-                const isDisabled = disabledRoles.includes(item.id);
-                const Icon = item.icon; 
-
-                return (
-                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                    <div className="flex items-center gap-3 min-w-[130px]">
-                        <button 
-                        onClick={() => toggleRole(item.id)}
-                        className={`p-1.5 rounded-md transition-colors ${isDisabled ? "bg-slate-100 text-slate-400" : "bg-green-50 text-green-600 hover:bg-green-100"}`}
-                        >
-                        <Power size={14} />
-                        </button>
-                        <div className={`flex items-center gap-2 font-medium text-sm ${isDisabled ? "text-slate-300 line-through" : "text-slate-700"}`}>
-                        <Icon size={16} className={isDisabled ? "text-slate-300" : "text-slate-500"} />
-                        {item.label}
-                        </div>
-                    </div>
-
-                    <div className="flex-1 w-full">
-                    {isSplitService ? (
-                        <div className="flex gap-2">
-                        {/* 3. PASAMOS LA LISTA DE NO DISPONIBLES A LOS SELECTORES (NUEVO) */}
-                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AM" disabled={isDisabled} unavailableUsers={unavailableUsers} />
-                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="PM" disabled={isDisabled} unavailableUsers={unavailableUsers} />
-                        </div>
-                    ) : (
-                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AMBOS" disabled={isDisabled} unavailableUsers={unavailableUsers} />
-                    )}
-                    </div>
+        <div key={item.id} className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 bg-white p-2 rounded-lg border border-slate-100 shadow-sm h-full">
+            <div className="flex items-center gap-3 min-w-[130px]">
+                <button 
+                    onClick={() => toggleRole(item.id)}
+                    className={`p-1.5 rounded-md transition-colors ${isDisabled ? "bg-slate-100 text-slate-400" : "bg-green-50 text-green-600 hover:bg-green-100"}`}
+                >
+                    <Power size={14} />
+                </button>
+                <div className={`flex items-center gap-2 font-medium text-sm ${isDisabled ? "text-slate-300 line-through" : "text-slate-700"}`}>
+                    <Icon size={16} className={isDisabled ? "text-slate-300" : "text-slate-500"} />
+                    {item.label}
                 </div>
-                );
-            })}
+            </div>
+
+            <div className="flex-1 w-full flex items-center">
+            {showSplit ? (
+                <div className="flex gap-2 w-full">
+                    <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AM" disabled={isDisabled} unavailableUsers={unavailableUsers} />
+                    <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="PM" disabled={isDisabled} unavailableUsers={unavailableUsers} />
+                </div>
+            ) : (
+                <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AMBOS" disabled={isDisabled} unavailableUsers={unavailableUsers} />
+            )}
             </div>
         </div>
     );
@@ -409,16 +403,19 @@ export default function Home() {
                     modifiers={{ ocupado: occupiedDates }}
                     modifiersClassNames={{ ocupado: "bg-blue-100 text-blue-700 font-bold hover:bg-blue-200" }}
                 />
-                <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
-                  <span className="text-sm font-medium text-slate-600">Separar turnos (AM / PM)</span>
-                  <Switch checked={isSplitService} onCheckedChange={toggleSplitService} />
-                </div>
+                
+                {selectedDate?.getDay() !== 6 && (
+                  <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <span className="text-sm font-medium text-slate-600">Separar turnos (AM / PM)</span>
+                    <Switch checked={isSplitService} onCheckedChange={toggleSplitService} />
+                  </div>
+                )}
               </CardContent>
             </Card>
         </div>
 
         {/* 2. ÁREA DE REPORTE */}
-        <div className="w-full max-w-6xl" id="report-capture-area">
+        <div className="w-full max-w-5xl" id="report-capture-area">
             <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 relative">
               
               {isLoadingSchedule && (
@@ -443,19 +440,89 @@ export default function Home() {
                 </div>
               </div>
 
-              <div id="service-grid-layout" className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                  <div className="w-full">
-                      {SERVICE_SECTIONS.filter(s => s.category === 'Banda').map(section => renderSection(section))}
-                  </div>
-                  <div className="w-full space-y-6">
-                        {SERVICE_SECTIONS.filter(s => s.category !== 'Banda').map(section => renderSection(section))}
-                  </div>
+              <div id="service-grid-layout" className="flex flex-col gap-6">
+                  
+                  {/* LÓGICA PARA DOMINGOS (DÍA 0) */}
+                  {selectedDate?.getDay() === 0 && (
+                      <>
+                        <div id="capture-banda" className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm">
+                             <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-slate-700">Banda</h3>
+                             </div>
+                             
+                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* INSTRUMENTOS */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 pl-1">Instrumentos</h4>
+                                    <div className="space-y-3">
+                                        {SERVICE_SECTIONS
+                                            .find(s => s.category === 'Banda')
+                                            ?.items
+                                            .filter(item => item.req !== 'voice') 
+                                            .map(item => renderRoleRow(item, 'Banda'))
+                                        }
+                                    </div>
+                                </div>
+
+                                {/* VOCES */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 pl-1">Voces</h4>
+                                    <div className="space-y-3">
+                                        {SERVICE_SECTIONS
+                                            .find(s => s.category === 'Banda')
+                                            ?.items
+                                            .filter(item => item.req === 'voice')
+                                            .map(item => renderRoleRow(item, 'Banda'))
+                                        }
+                                    </div>
+                                </div>
+                             </div>
+                        </div>
+
+                        <div id="capture-tecnica" className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-slate-700">Técnica</h3>
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                 {SERVICE_SECTIONS
+                                    .find(s => s.category === 'Sonido')
+                                    ?.items
+                                    .map(item => renderRoleRow(item, 'Sonido'))
+                                 }
+                            </div>
+                        </div>
+                      </>
+                  )}
+
+                  {/* LÓGICA PARA SÁBADOS (DÍA 6) */}
+                  {selectedDate?.getDay() === 6 && (
+                       <div className="w-full max-w-2xl mx-auto">
+                           <div className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm">
+                                <h3 className="text-lg font-bold text-slate-700 mb-4 flex gap-2">
+                                    Jóvenes <Badge className="bg-slate-800">Sábado</Badge>
+                                </h3>
+                                <div className="space-y-3">
+                                    {SERVICE_SECTIONS
+                                        .find(s => s.category === 'Jovenes')
+                                        ?.items
+                                        .map(item => renderRoleRow(item, 'Jovenes'))
+                                    }
+                                </div>
+                           </div>
+                       </div>
+                  )}
+
+                  {!selectedDate && (
+                      <div className="col-span-full text-center py-10 text-slate-400">
+                          Selecciona un día en el calendario para comenzar.
+                      </div>
+                  )}
               </div>
               
             </div>
         </div>
 
-        {/* 3. BARRA INFERIOR MODIFICADA */}
+        {/* 3. BARRA INFERIOR */}
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t p-4 shadow-2xl z-50">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
               
@@ -464,38 +531,26 @@ export default function Home() {
                   <span className="text-xs font-medium text-slate-400 hidden lg:block">Inchinare Team</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* BOTONES GEMELOS */}
+              <div className="flex items-center gap-3">
                   <Button 
-                      variant="ghost" 
+                      variant="outline" 
                       onClick={handleCopyText} 
-                      className={`gap-2 ${copied ? "text-green-600 bg-green-50" : "text-slate-600 hover:bg-slate-100"}`}
+                      className={`gap-2 border-slate-300 ${copied ? "text-green-600 bg-green-50 border-green-200" : "text-slate-600 hover:bg-slate-50"}`}
                   >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
-                      <span className="hidden sm:inline font-medium">{copied ? "¡Copiado!" : "Copiar Texto"}</span>
+                      <span className="hidden sm:inline font-medium">{copied ? "Copiado" : "Copiar Texto"}</span>
                   </Button>
 
-                  <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                          <Button variant="outline" className="gap-2" disabled={isExporting}>
-                              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
-                              Captura <ChevronDown size={14} className="opacity-50" />
-                          </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="center">
-                          <DropdownMenuItem onClick={() => handleExport("report-capture-area")}>
-                              📸 Reporte Completo
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleExport("capture-banda", "-Banda")}>
-                              🎸 Solo Banda
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleExport("capture-tecnica", "-Tecnica")}>
-                              🎚️ Solo Sonido
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleExport("capture-jovenes", "-Jovenes")}>
-                              🌟 Solo Jóvenes
-                          </DropdownMenuItem>
-                      </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button 
+                      variant="outline"
+                      onClick={() => handleExport("report-capture-area")}
+                      disabled={isExporting}
+                      className="gap-2 border-slate-300 text-slate-600 hover:bg-slate-50"
+                  >
+                      {isExporting ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                      <span className="hidden sm:inline font-medium">Guardar Imagen</span>
+                  </Button>
               </div>
 
               <div className="w-full md:w-auto flex justify-center md:justify-end">
