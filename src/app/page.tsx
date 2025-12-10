@@ -6,13 +6,16 @@ import { useState, useEffect } from "react";
 import { useTeamData } from "@/hooks/useTeamData";
 import { useScheduleStore } from "@/store/schedule";
 import { supabase } from "@/lib/supabase";
+import { User as UserType } from "@/types"; 
 
-// COMPONENTES
+// COMPONENTES DE VISTAS
 import { LoginScreen } from "@/components/LoginScreen";
 import { TeamManagerDialog } from "@/components/TeamManagerDialog";
 import { RoleSelector } from "@/components/RoleSelector";
-// 👇 IMPORTANTE: Importamos el nuevo componente
 import { ProcessedDatesManager } from "@/components/ProcessedDatesManager"; 
+import { MemberLogin } from "@/components/MemberLogin";
+import { UserAvailabilityView } from "@/components/UserAvailabilityView";
+
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -21,8 +24,15 @@ import { Button } from "@/components/ui/button";
 import { 
   Save, Download, Loader2, Power, LogOut, 
   Mic, Guitar, Music, Drum, Sliders, Video, 
-  Users, User, Keyboard, Zap 
+  Users, User, Keyboard, Zap,
+  Copy, Check, ChevronDown, ImageIcon
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { es } from "date-fns/locale";
 
 // DEFINICIÓN DE LA ESTRUCTURA
@@ -30,6 +40,7 @@ const SERVICE_SECTIONS = [
   {
     title: 'Banda',
     category: 'Banda',
+    id_dom: 'capture-banda', 
     items: [
       { id: 'worshipLeader', label: 'Líder', req: 'voice', icon: User },
       { id: 'voice1', label: 'Voz 1', req: 'voice', icon: Mic },
@@ -44,22 +55,18 @@ const SERVICE_SECTIONS = [
     ]
   },
   {
-    title: 'Sonido',
+    title: 'Técnica (Sonido & Streaming)', 
     category: 'Sonido',
+    id_dom: 'capture-tecnica', 
     items: [
       { id: 'sound', label: 'Sala', req: 'media', icon: Sliders }, 
-    ]
-  },
-  {
-    title: 'Streaming',
-    category: 'Sonido', 
-    items: [
       { id: 'streaming', label: 'Streaming', req: 'media', icon: Video }, 
     ]
   },
   {
     title: 'Jovenes',
     category: 'Jovenes',
+    id_dom: 'capture-jovenes',
     badge: 'Sábado',
     items: [
       { id: 'youthLeader', label: 'Líder', req: 'voice', icon: User },
@@ -73,6 +80,11 @@ const SERVICE_SECTIONS = [
 ];
 
 export default function Home() {
+  const [session, setSession] = useState<any>(null); 
+  const [selectedMember, setSelectedMember] = useState<UserType | null>(null); 
+  const [showAdminLogin, setShowAdminLogin] = useState(false); 
+  const [authLoading, setAuthLoading] = useState(true);
+
   const { users, loading, refreshTeam } = useTeamData();
   const { 
     selectedDate, setDate, isSplitService, toggleSplitService, 
@@ -81,13 +93,15 @@ export default function Home() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [session, setSession] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [disabledRoles, setDisabledRoles] = useState<string[]>([]);
   const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
+  // 1. ESTADO PARA LOS USUARIOS NO DISPONIBLES (NUEVO)
+  const [unavailableUsers, setUnavailableUsers] = useState<string[]>([]);
 
-  // --- EFFECTS (Auth, Load, Dates) ---
+  // --- EFECTOS ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -108,6 +122,35 @@ export default function Home() {
     };
     if (session) fetchOccupiedDates();
   }, [isSaving, session]);
+
+  // 2. EFECTO PARA CARGAR "NO DISPONIBLES" CUANDO CAMBIA LA FECHA (NUEVO)
+  useEffect(() => {
+    const fetchUnavailable = async () => {
+      if (!selectedDate) {
+        setUnavailableUsers([]);
+        return;
+      }
+      
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      const { data } = await supabase
+        .from('unavailability')
+        .select('user_id')
+        .eq('fecha', dateStr);
+        
+      if (data) {
+        setUnavailableUsers(data.map(item => item.user_id));
+      } else {
+        setUnavailableUsers([]);
+      }
+    };
+
+    if (session) fetchUnavailable();
+  }, [selectedDate, session]); // Se ejecuta al cambiar la fecha
+
 
   useEffect(() => {
     const loadScheduleForDate = async () => {
@@ -137,7 +180,6 @@ export default function Home() {
   const handleSave = async () => {
     if (!selectedDate) return alert("Por favor selecciona una fecha primero");
     
-    // Validar puestos faltantes
     const allItems = SERVICE_SECTIONS.flatMap(s => s.items);
     const activeItems = allItems.filter(item => !disabledRoles.includes(item.id));
     const requiredTurnos = isSplitService ? ['AM', 'PM'] : ['AMBOS'];
@@ -164,7 +206,6 @@ export default function Home() {
       const day = String(selectedDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
-      // Lógica de guardado y disponibilidades
       const { data: existingLock } = await supabase.from('processed_dates').select('fecha').eq('fecha', dateStr).single();
       const isAlreadyProcessed = !!existingLock; 
 
@@ -195,7 +236,6 @@ export default function Home() {
         alert("¡Cambios guardados!");
       }
 
-      // Refrescar ocupados
       const { data } = await supabase.from('assignments').select('fecha');
       if(data) setOccupiedDates(Array.from(new Set(data.map(i => i.fecha))).map(d => new Date(d+'T00:00:00')));
 
@@ -203,17 +243,55 @@ export default function Home() {
     finally { setIsSaving(false); }
   };
 
-  const handleExport = async () => {
+  const handleCopyText = () => {
+    if (!selectedDate) return;
+    
+    const dateStr = selectedDate.toLocaleDateString('es-ES', { dateStyle: 'full' });
+    let text = `🗓️ *PLANIFICACIÓN - ${dateStr.toUpperCase()}*\n\n`;
+
+    SERVICE_SECTIONS.forEach(section => {
+      const activeItemsInSection = section.items.filter(item => !disabledRoles.includes(item.id));
+      if (activeItemsInSection.length === 0) return;
+
+      text += `*${section.title.toUpperCase()}*\n`;
+      
+      activeItemsInSection.forEach(item => {
+         const getNames = (turno: string) => {
+            const assignment = currentAssignments.find(a => a.role_id === item.id && a.turno === turno);
+            if (!assignment) return "Pendiente";
+            const user = users.find(u => u.id === assignment.user_id);
+            return user ? user.nombre : "Desconocido";
+         };
+
+         if (isSplitService) {
+             text += `- ${item.label}: AM: ${getNames('AM')} | PM: ${getNames('PM')}\n`;
+         } else {
+             text += `- ${item.label}: ${getNames('AMBOS')}\n`;
+         }
+      });
+      text += `\n`;
+    });
+    text += `_Generado con Inchinare App_`;
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExport = async (targetId: string = "report-capture-area", filenameSuffix: string = "") => {
     if (!selectedDate) return;
     setIsExporting(true);
     try {
-      const element = document.getElementById("report-capture-area");
-      if (!element) return;
+      const element = document.getElementById(targetId);
+      if (!element) {
+        alert("No se encontró el elemento para exportar.");
+        return;
+      }
       
-      const dataUrl = await toJpeg(element, { 
+      const options = { 
         quality: 0.95, 
         backgroundColor: '#ffffff',
-        width: 1200, // Anchura de lienzo
+        width: 1200, 
         style: { 
             margin: '0',
             minWidth: '1200px',
@@ -221,38 +299,40 @@ export default function Home() {
             height: 'auto',
             padding: '40px'
         },
-        // 👇 ESTA ES LA CLAVE: Modificamos el clon antes de la foto
         onClone: (clonedNode: HTMLElement) => {
-            // Buscamos el grid dentro del nodo clonado
-            // (Nota: clonedNode es un HTMLElement, así que podemos usar querySelector)
-            const gridElement = (clonedNode as HTMLElement).querySelector('#service-grid-layout') as HTMLElement;
-            
-            if (gridElement) {
-                // Forzamos CSS Grid de 2 columnas manualmente
-                gridElement.style.display = 'grid';
-                gridElement.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
-                gridElement.style.gap = '24px'; // Equivalente a gap-6
+            if (targetId === "report-capture-area") {
+                const gridElement = clonedNode.querySelector('#service-grid-layout');
+                if (gridElement instanceof HTMLElement) { 
+                    gridElement.style.display = 'grid';
+                    gridElement.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+                    gridElement.style.gap = '24px'; 
+                }
+            } else {
+                clonedNode.style.borderRadius = '0';
+                clonedNode.style.boxShadow = 'none';
+                clonedNode.style.border = 'none';
             }
         }
-      }as any);
+      } as any;
 
+      const dataUrl = await toJpeg(element, options);
       const link = document.createElement('a');
       
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
       const day = String(selectedDate.getDate()).padStart(2, '0');
 
-      link.download = `Inchinare-${year}-${month}-${day}.jpg`;
+      link.download = `Inchinare${filenameSuffix}-${year}-${month}-${day}.jpg`;
       link.href = dataUrl;
       link.click();
     } catch (e) { 
-        console.error(e); 
+        console.error("Error export:", e); 
         alert("Error al exportar"); 
     } finally { 
         setIsExporting(false); 
     }
   };
-  // --- RENDER HELPER ---
+
   const renderSection = (section: typeof SERVICE_SECTIONS[0]) => {
     const sectionUsers = users.filter(user => {
         if (section.category === 'Banda') return user.es_banda;
@@ -261,7 +341,7 @@ export default function Home() {
     });
 
     return (
-        <div key={section.title} className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm h-full">
+        <div id={section.id_dom} key={section.title} className="bg-slate-50/50 rounded-xl border border-slate-200/60 p-5 shadow-sm h-full">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
                 {section.title}
@@ -276,7 +356,6 @@ export default function Home() {
 
                 return (
                 <div key={item.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                    {/* Icono y Label */}
                     <div className="flex items-center gap-3 min-w-[130px]">
                         <button 
                         onClick={() => toggleRole(item.id)}
@@ -290,15 +369,15 @@ export default function Home() {
                         </div>
                     </div>
 
-                    {/* Selector */}
                     <div className="flex-1 w-full">
                     {isSplitService ? (
                         <div className="flex gap-2">
-                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AM" disabled={isDisabled} />
-                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="PM" disabled={isDisabled} />
+                        {/* 3. PASAMOS LA LISTA DE NO DISPONIBLES A LOS SELECTORES (NUEVO) */}
+                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AM" disabled={isDisabled} unavailableUsers={unavailableUsers} />
+                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="PM" disabled={isDisabled} unavailableUsers={unavailableUsers} />
                         </div>
                     ) : (
-                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AMBOS" disabled={isDisabled} />
+                        <RoleSelector slotId={item.id} label={item.label} capability={item.req} users={sectionUsers} turno="AMBOS" disabled={isDisabled} unavailableUsers={unavailableUsers} />
                     )}
                     </div>
                 </div>
@@ -310,98 +389,155 @@ export default function Home() {
   };
 
 
+  // --- RENDERIZADO PRINCIPAL ---
+
   if (authLoading) return <div className="h-screen w-full flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
-  if (!session) return <LoginScreen />;
-  if (loading) return <div className="p-10 text-center flex items-center justify-center gap-2"><Loader2 className="animate-spin"/> Cargando...</div>;
 
-  return (
-    <main className="min-h-screen bg-slate-50 p-4 pb-24 flex flex-col items-center gap-8">
-      
-      {/* 1. CALENDARIO SUPERIOR */}
-      <div className="w-full max-w-md space-y-4">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-2"><CardTitle className="text-center text-slate-700">Planificador</CardTitle></CardHeader>
-            <CardContent>
-              <Calendar
-                  mode="single" selected={selectedDate} onSelect={setDate} locale={es}
-                  className="rounded-md mx-auto flex justify-center"
-                  disabled={(date) => date.getDay() !== 0} 
-                  modifiers={{ ocupado: occupiedDates }}
-                  modifiersClassNames={{ ocupado: "bg-blue-100 text-blue-700 font-bold hover:bg-blue-200" }}
-              />
-              <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
-                <span className="text-sm font-medium text-slate-600">Separar turnos (AM / PM)</span>
-                <Switch checked={isSplitService} onCheckedChange={toggleSplitService} />
-              </div>
-            </CardContent>
-          </Card>
-      </div>
+  if (session) {
+    return (
+      <main className="min-h-screen bg-slate-50 p-4 pb-24 flex flex-col items-center gap-8">
+        
+        {/* 1. CALENDARIO */}
+        <div className="w-full max-w-md space-y-4">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2"><CardTitle className="text-center text-slate-700">Planificador</CardTitle></CardHeader>
+              <CardContent>
+                <Calendar
+                    mode="single" selected={selectedDate} onSelect={setDate} locale={es}
+                    className="rounded-md mx-auto flex justify-center"
+                    disabled={(date) => date.getDay() !== 0} 
+                    modifiers={{ ocupado: occupiedDates }}
+                    modifiersClassNames={{ ocupado: "bg-blue-100 text-blue-700 font-bold hover:bg-blue-200" }}
+                />
+                <div className="mt-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <span className="text-sm font-medium text-slate-600">Separar turnos (AM / PM)</span>
+                  <Switch checked={isSplitService} onCheckedChange={toggleSplitService} />
+                </div>
+              </CardContent>
+            </Card>
+        </div>
 
-      {/* 2. ÁREA DE REPORTE */}
-      <div className="w-full max-w-6xl" id="report-capture-area">
-          <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 relative">
-            
-            {isLoadingSchedule && (
-              <div className="absolute inset-0 bg-white/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm rounded-xl">
-                  <Loader2 className="animate-spin text-blue-600 mb-2" size={40} />
-                  <span className="text-sm font-medium text-slate-600 animate-pulse">Cargando organización...</span>
-              </div>
-            )}
+        {/* 2. ÁREA DE REPORTE */}
+        <div className="w-full max-w-6xl" id="report-capture-area">
+            <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 relative">
+              
+              {isLoadingSchedule && (
+                <div className="absolute inset-0 bg-white/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm rounded-xl">
+                    <Loader2 className="animate-spin text-blue-600 mb-2" size={40} />
+                    <span className="text-sm font-medium text-slate-600 animate-pulse">Cargando organización...</span>
+                </div>
+              )}
 
-            {/* Header Reporte */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-slate-100 pb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Organización del Culto</h1>
-                <div className="flex flex-wrap items-center gap-3 mt-2">
-                    <Badge variant="outline" className="text-base px-3 py-1 border-slate-300 font-normal text-slate-600">
-                        {selectedDate ? selectedDate.toLocaleDateString('es-ES', { dateStyle: 'full' }) : "Selecciona fecha..."}
-                    </Badge>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-slate-100 pb-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Organización del Culto</h1>
+                  <div className="flex flex-wrap items-center gap-3 mt-2">
+                      <Badge variant="outline" className="text-base px-3 py-1 border-slate-300 font-normal text-slate-600">
+                          {selectedDate ? selectedDate.toLocaleDateString('es-ES', { dateStyle: 'full' }) : "Selecciona fecha..."}
+                      </Badge>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <TeamManagerDialog users={users} onUpdate={refreshTeam} />
+                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={handleLogout}><LogOut size={20} /></Button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <TeamManagerDialog users={users} onUpdate={refreshTeam} />
-                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={handleLogout}><LogOut size={20} /></Button>
+
+              <div id="service-grid-layout" className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  <div className="w-full">
+                      {SERVICE_SECTIONS.filter(s => s.category === 'Banda').map(section => renderSection(section))}
+                  </div>
+                  <div className="w-full space-y-6">
+                        {SERVICE_SECTIONS.filter(s => s.category !== 'Banda').map(section => renderSection(section))}
+                  </div>
               </div>
-            </div>
-
-            {/* Layout Columnas */}
-            <div id="service-grid-layout" className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                {/* COLUMNA IZQUIERDA: Banda */}
-                <div className="w-full">
-                    {SERVICE_SECTIONS.filter(s => s.category === 'Banda').map(section => renderSection(section))}
-                </div>
-                {/* COLUMNA DERECHA: Sonido y Jóvenes */}
-                <div className="w-full space-y-6">
-                     {SERVICE_SECTIONS.filter(s => s.category !== 'Banda').map(section => renderSection(section))}
-                </div>
-            </div>
-            
-          </div>
-      </div>
-
-      {/* 3. BARRA INFERIOR MODIFICADA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t p-4 shadow-2xl z-50">
-        <div className="max-w-5xl mx-auto flex justify-between items-center">
-            
-            {/* LADO IZQUIERDO: Versión y Nuevo Botón de Historial */}
-            <div className="flex items-center gap-4">
-                <span className="text-xs font-medium text-slate-400 hidden sm:block">Inchinare Team Manager v1.2.3</span>
-                {/* 👇 Aquí está el componente nuevo */}
-                <ProcessedDatesManager onUpdate={refreshTeam} />
-            </div>
-
-            {/* LADO DERECHO: Botones de Acción */}
-            <div className="flex gap-4 w-full sm:w-auto justify-end">
-                <Button variant="outline" className="gap-2" onClick={handleExport} disabled={isExporting}>
-                  {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} Captura
-                </Button>
-                <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />} Guardar
-                </Button>
+              
             </div>
         </div>
-      </div>
 
-    </main>
+        {/* 3. BARRA INFERIOR MODIFICADA */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t p-4 shadow-2xl z-50">
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+              
+              <div className="flex items-center gap-4 w-full md:w-auto justify-center md:justify-start">
+                  <ProcessedDatesManager onUpdate={refreshTeam} />
+                  <span className="text-xs font-medium text-slate-400 hidden lg:block">Inchinare Team</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                  <Button 
+                      variant="ghost" 
+                      onClick={handleCopyText} 
+                      className={`gap-2 ${copied ? "text-green-600 bg-green-50" : "text-slate-600 hover:bg-slate-100"}`}
+                  >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      <span className="hidden sm:inline font-medium">{copied ? "¡Copiado!" : "Copiar Texto"}</span>
+                  </Button>
+
+                  <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="gap-2" disabled={isExporting}>
+                              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                              Captura <ChevronDown size={14} className="opacity-50" />
+                          </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="center">
+                          <DropdownMenuItem onClick={() => handleExport("report-capture-area")}>
+                              📸 Reporte Completo
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExport("capture-banda", "-Banda")}>
+                              🎸 Solo Banda
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExport("capture-tecnica", "-Tecnica")}>
+                              🎚️ Solo Sonido
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleExport("capture-jovenes", "-Jovenes")}>
+                              🌟 Solo Jóvenes
+                          </DropdownMenuItem>
+                      </DropdownMenuContent>
+                  </DropdownMenu>
+              </div>
+
+              <div className="w-full md:w-auto flex justify-center md:justify-end">
+                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700 w-full md:w-auto" onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />} Guardar
+                  </Button>
+              </div>
+
+          </div>
+        </div>
+
+      </main>
+    );
+  }
+
+  if (selectedMember) {
+      return (
+        <UserAvailabilityView 
+            user={selectedMember} 
+            onBack={() => setSelectedMember(null)} 
+        />
+      );
+  }
+
+  if (showAdminLogin) {
+      return (
+        <div className="relative">
+             <button 
+                onClick={() => setShowAdminLogin(false)}
+                className="absolute top-4 left-4 z-50 text-slate-500 hover:text-slate-800 text-sm font-medium flex items-center gap-1 bg-white/80 p-2 rounded backdrop-blur"
+             >
+                ← Volver
+             </button>
+             <LoginScreen />
+        </div>
+      );
+  }
+
+  return (
+    <MemberLogin 
+        onSelectUser={setSelectedMember} 
+        onAdminClick={() => setShowAdminLogin(true)} 
+    />
   );
 }

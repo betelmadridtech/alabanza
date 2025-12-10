@@ -20,6 +20,7 @@ interface RoleSelectorProps {
   users: User[];
   turno: Turno | "AMBOS"; 
   disabled?: boolean;
+  unavailableUsers?: string[]; // 1. Nueva propiedad opcional
 }
 
 export function RoleSelector({ 
@@ -28,7 +29,8 @@ export function RoleSelector({
   capability, 
   users, 
   turno, 
-  disabled 
+  disabled,
+  unavailableUsers = [] // 1. Valor por defecto (array vacío)
 }: RoleSelectorProps) {
   
   const { currentAssignments, addAssignment, removeAssignment, selectedDate } = useScheduleStore();
@@ -37,11 +39,10 @@ export function RoleSelector({
     (a) => a.role_id === slotId && a.turno === turno
   );
 
-  // --- NUEVO: Buscamos el objeto usuario completo del asignado actualmente ---
+  // Buscamos el objeto usuario completo del asignado actualmente
   const selectedUser = users.find(u => u.id === assignment?.user_id);
 
-
-  // --- 1. FUNCIÓN DE CONFLICTOS ---
+  // --- FUNCIÓN DE CONFLICTOS ---
   const isYouthRole = (id: string) => id.toLowerCase().includes('youth');
 
   const getConflictInfo = (userId: string) => {
@@ -77,8 +78,11 @@ export function RoleSelector({
   };
 
   // --- 2. PREPARACIÓN DE DATOS ---
+  // Filtramos por capacidad Y por disponibilidad marcada por el usuario
   const qualifiedUsers = users.filter(user => 
-    user.roles && user.roles.includes(capability)
+    user.roles && 
+    user.roles.includes(capability) &&
+    !unavailableUsers.includes(user.id) // 2. Si el usuario marcó "No disponible", lo ocultamos
   );
 
   const usersWithStatus = qualifiedUsers.map(user => {
@@ -109,7 +113,6 @@ export function RoleSelector({
         value={assignment?.user_id || ""}
         onValueChange={handleSelect}
       >
-        {/* --- MODIFICACIÓN AQUÍ: Renderizado condicional del Trigger --- */}
         <SelectTrigger className={`w-full ${!assignment ? "text-slate-400" : "text-black font-medium"}`}>
           {selectedUser ? (
              /* Si hay usuario, mostramos SOLO el nombre limpio */
@@ -133,7 +136,7 @@ export function RoleSelector({
 
           {sortedUsers.length === 0 ? (
             <div className="p-4 text-sm text-slate-400 text-center italic">
-              Nadie con rol: {capability}
+              Nadie disponible con rol: {capability}
             </div>
           ) : (
             sortedUsers.map((user) => {
