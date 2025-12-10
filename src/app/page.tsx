@@ -405,7 +405,7 @@ export default function Home() {
                 <Calendar
                     mode="single" selected={selectedDate} onSelect={setDate} locale={es}
                     className="rounded-md mx-auto flex justify-center"
-                    disabled={(date) => date.getDay() !== 0} 
+                    disabled={(date) => date.getDay() !== 0 && date.getDay() !== 6}
                     modifiers={{ ocupado: occupiedDates }}
                     modifiersClassNames={{ ocupado: "bg-blue-100 text-blue-700 font-bold hover:bg-blue-200" }}
                 />
